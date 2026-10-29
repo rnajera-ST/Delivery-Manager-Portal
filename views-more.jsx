@@ -164,9 +164,16 @@ function Team({ accounts, onOpen, goTo, setIcFocus }) {
     const cmrr = mine.reduce((s,a)=>s+a.cmrr,0);
     const buckets = { good:0, mid:0, bad:0, none:0 };
     mine.forEach(a=>{ if(a.hs==null)buckets.none++; else if(a.hs>=5)buckets.good++; else if(a.hs>=4)buckets.mid++; else buckets.bad++; });
-    return { t, mine, risk, esc, avgHs, avgCsat, act, trans, cmrr, buckets, tot: mine.length||1 };
+    const stage = { pre:0, imp:0, live:0, other:0 };
+    mine.forEach(a=>{
+      if(a.status==="Pre-Implementation") stage.pre++;
+      else if(a.status==="Implementation") stage.imp++;
+      else if(a.status==="Live") stage.live++;
+      else stage.other++;
+    });
+    return { t, mine, risk, esc, avgHs, avgCsat, act, trans, cmrr, buckets, stage, tot: mine.length||1 };
   });
-  const teamTotal = rows.reduce((o,r)=>{ o.act+=r.act; o.trans+=r.trans; return o; }, {act:0,trans:0});
+  const teamTotal = rows.reduce((o,r)=>{ o.act+=r.act; o.trans+=r.trans; o.pre+=r.stage.pre; o.imp+=r.stage.imp; o.live+=r.stage.live; o.other+=r.stage.other; o.accts+=r.mine.length; return o; }, {act:0,trans:0,pre:0,imp:0,live:0,other:0,accts:0});
   const col = (avg, kind) => avg==null ? "var(--fg-4)" : kind==="hs" ? (avg>=5?"var(--green)":avg>=4?"var(--sky)":"var(--red)") : (avg>=4?"var(--green)":avg>=3?"var(--yellow)":"var(--red)");
 
   return (
@@ -184,6 +191,7 @@ function Team({ accounts, onOpen, goTo, setIcFocus }) {
           </optgroup>
         </select>
         <span className="spacer" />
+        <span className="count-note" style={{ marginRight:14 }}>Team accounts: <strong>{teamTotal.accts}</strong> · {teamTotal.pre} pre-imp · {teamTotal.imp} imp · {teamTotal.live} live{teamTotal.other>0 ? ` · ${teamTotal.other} other` : ""}</span>
         <span className="count-note">Team total: <strong style={{ color:"var(--green)" }}>{teamTotal.act}</strong> activations · <strong style={{ color:"var(--sky)" }}>{teamTotal.trans}</strong> transitions</span>
       </div>
 
@@ -192,6 +200,10 @@ function Team({ accounts, onOpen, goTo, setIcFocus }) {
           <thead><tr>
             <th>Consultant</th>
             <th style={{textAlign:"right"}}>Accts</th>
+            <th style={{textAlign:"right"}} title="Pre-Implementation">Pre-Imp</th>
+            <th style={{textAlign:"right"}} title="Implementation">Imp</th>
+            <th style={{textAlign:"right"}} title="Live, including Hypercare, until moved to Success">Live</th>
+            <th style={{textAlign:"right"}} title="Hold, No Payment Method, and any other status">Other</th>
             <th style={{textAlign:"right"}}>At Risk</th>
             <th style={{textAlign:"right"}}>Avg HS</th>
             <th style={{textAlign:"right"}}>CSAT</th>
@@ -209,6 +221,10 @@ function Team({ accounts, onOpen, goTo, setIcFocus }) {
                     <span><span style={{ fontWeight:700 }}>{t.name}</span> <span className="pill-tag" style={{ padding:"0 6px", fontSize:10 }}>{t.level}</span>
                     {t.onLeave && <span style={{ fontSize:11, color:"var(--fg-4)", marginLeft:6, fontWeight:700 }}>· {t.status}</span>}</span></span></td>
                   <td style={{textAlign:"right"}} className="num">{r.mine.length}</td>
+                  <td style={{textAlign:"right"}} className="num">{r.stage.pre}</td>
+                  <td style={{textAlign:"right"}} className="num">{r.stage.imp}</td>
+                  <td style={{textAlign:"right"}} className="num">{r.stage.live}</td>
+                  <td style={{textAlign:"right"}} className="num muted">{r.stage.other || "—"}</td>
                   <td style={{textAlign:"right"}}>{r.risk.length>0 ? <span style={{ color:"var(--red)", fontWeight:800, fontFamily:"var(--font-display)" }}>{r.risk.length}</span> : <span className="muted">—</span>}</td>
                   <td style={{textAlign:"right", fontWeight:700, fontFamily:"var(--font-display)", color:col(r.avgHs,"hs")}}>{r.avgHs!=null?r.avgHs.toFixed(1):"—"}</td>
                   <td style={{textAlign:"right", fontWeight:700, fontFamily:"var(--font-display)", color:col(r.avgCsat,"csat")}}>{r.avgCsat!=null?r.avgCsat.toFixed(1):"—"}</td>
@@ -222,7 +238,7 @@ function Team({ accounts, onOpen, goTo, setIcFocus }) {
                   </div></td>
                   <td style={{textAlign:"right"}}><MI style={{ color:"var(--fg-3)", transition:"transform .2s" }}>{open?"expand_less":"expand_more"}</MI></td>
                 </tr>
-                {open && <tr><td colSpan={9} style={{ padding:0, background:"var(--soft)" }}>
+                {open && <tr><td colSpan={13} style={{ padding:0, background:"var(--soft)" }}>
                   <TeamExpand r={r} onOpen={onOpen} goTo={goTo} setIcFocus={setIcFocus} />
                 </td></tr>}
               </React.Fragment>;

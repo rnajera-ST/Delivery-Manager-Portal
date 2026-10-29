@@ -68,11 +68,39 @@ function AccountDetail({ account, onClose, onSave, onOpenEsc }) {
   );
 }
 
+// Shared MAX New Logo links shown in the account Resources card.
+const EHUB_REQUEST_FORM_URL = "https://airtable.com/app7iMshgNNncfHtJ/shrhhimwvOIMHdYpf";
+const MAX_RESOURCE_LINKS = [
+  { label: "Delivery Manager Playbook", icon: "menu_book", href: "https://docs.google.com/document/d/172R3kc50yFJz9PptnYpvuvXsvz3epceYLnrlYoFvH5g/edit" },
+  { label: "Max Package Features", icon: "inventory_2", href: "https://docs.google.com/spreadsheets/d/1HGGqD4u0XaAEr3aV9mi3X45FgyC2upXjr9KkenTahtc/edit" },
+];
+
+function ResourcesCard({ a }) {
+  const sp = a.specialists || {};
+  const people = ["DQA", "Telecom", "Fintech"].map(k => [k, sp[k] && sp[k].name]);
+  const linkStyle = { textDecoration: "none" };
+  return (
+    <div className="card card-pad" style={{ marginBottom:16 }}>
+      <span className="eyebrow">Resources</span>
+      <div className="dgrid" style={{ margin:"10px 0 12px" }}>
+        <Dcell l="Package" v={a.packageName || "—"} />
+        {people.map(([k, n]) => <Dcell key={k} l={k + " specialist"} v={n || "Not assigned"} />)}
+      </div>
+      <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+        <a href={EHUB_REQUEST_FORM_URL} target="_blank" rel="noreferrer" className="btn btn-sm btn-primary" style={linkStyle} onClick={e => e.stopPropagation()}><MI>hub</MI>Enterprise Hub request form</a>
+        {MAX_RESOURCE_LINKS.map(l => <a key={l.label} href={l.href} target="_blank" rel="noreferrer" className="btn btn-sm" style={linkStyle} onClick={e => e.stopPropagation()}><MI>{l.icon}</MI>{l.label}</a>)}
+      </div>
+    </div>
+  );
+}
+
 function OverviewTab({ a, wk, cycle, m }) {
+  const hsAge = a.hsLastUpdated ? P.ageDays(a.hsLastUpdated) : null;
   return (
     <div className="view-enter">
       <div className="dgrid" style={{ marginBottom:16 }}>
         <Dcell l="OB Health" v={a.hs!=null ? `${a.hs} · ${m.l}` : "Missing"} alert={a.hs!=null && a.hs<=3} />
+        <Dcell l="Health Updated" v={hsAge!=null ? (hsAge===0 ? "Today" : hsAge + "d ago") : "Never"} alert={(hsAge==null || hsAge>14) && (a.status==="Implementation" || a.status==="Live")} />
         <Dcell l="CMRR" v={fmtMoney(a.cmrr)} />
         <Dcell l="Outstanding Balance" v={a.outstandingBalance < 0 ? fmtMoney(a.outstandingBalance) : "—"} alert={a.outstandingBalance < 0} />
         <Dcell l="Managed Techs" v={a.techs} />
@@ -94,6 +122,8 @@ function OverviewTab({ a, wk, cycle, m }) {
           <span>Kickoff</span><span>Build</span><span>Train</span><span>Go-Live</span><span>Transition</span>
         </div>
       </div>
+
+      <ResourcesCard a={a} />
 
       {a.hsComment && (() => {
         const risk = a.hs != null && a.hs <= 3;

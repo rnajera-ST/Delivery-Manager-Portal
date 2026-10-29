@@ -1,3 +1,5 @@
+> **Delivery Manager Portal (new project).** This file was inherited from the original Manager Portal (Roberto's SMB team, run by Rachel Hogue and others). The architecture, Snowflake tables, and compliance flag definitions still apply. The team roster, role rules, and 1-week/3-week assumptions are NOT updated for MAX and should not be trusted here. The original repo (rnajera-ST/manager-portal) is intentionally left unchanged. All ICs on this portal's team handle MAX accounts only.
+
 # CLAUDE.md — Manager Portal Project Context
 
 This file gives AI assistants (Claude Code, Claude.ai, etc.) full context on the Manager Portal project. Read this before making any changes.
