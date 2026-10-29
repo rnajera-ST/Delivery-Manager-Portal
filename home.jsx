@@ -10,7 +10,9 @@ function Home({ accounts, onOpen, goTo, goToCompliance }) {
   // Cycle time from backend (kickoff to success transition, last 6 months)
   const ctData = window._cycleTime || [];
   const avgCycleWeeks = ctData.length ? (ctData.reduce((s,c)=>s+c.days,0)/ctData.length/7) : 0;
-  const ctOver4 = ctData.filter(c => c.days/7 > 4).length;
+  const avgOf = (k) => { const v = ctData.map(c=>c[k]).filter(x=>x!=null && x>=0); return v.length ? v.reduce((a,b)=>a+b,0)/v.length/7 : null; };
+  const avgToLive = avgOf("liveDays");
+  const avgToSuccess = avgOf("successDays");
   // activations & transitions: completed so far this month + full-month projection
   const inMonth = (d) => d && new Date(d).getMonth()===now.getMonth() && new Date(d).getFullYear()===now.getFullYear();
   // Activations/transitions completed THIS MONTH come from the status-agnostic
@@ -92,20 +94,20 @@ function Home({ accounts, onOpen, goTo, goToCompliance }) {
   return (
     <div className="view-enter">
       <div className="kpi-grid kpi-primary">
-        <KPI icon="rocket_launch" label={`Activations · ${monthName}`} value={actSoFar} accent="var(--green)" size="lg"
+        <KPI icon="rocket_launch" label={`Go-Lives · ${monthName}`} value={actSoFar} accent="var(--green)" size="lg"
           foot={`${projGoLives} more projected this month`} footDir="up" onClick={()=>goTo("performance")} />
         <KPI icon="flag" label={`Projected Go-Lives · ${monthName}`} value={projGoLives} accent="var(--green)" size="lg"
           foot="still to go live" footDir="flat" onClick={()=>goTo("pipeline")} />
-        <KPI icon="swap_horiz" label={`Transitions · ${monthName}`} value={transSoFar} accent="var(--sky)" size="lg"
+        <KPI icon="swap_horiz" label={`Moved to Success · ${monthName}`} value={transSoFar} accent="var(--sky)" size="lg"
           foot={`${antTrans} more projected this month`} footDir="up" onClick={()=>goTo("performance")} />
-        <KPI icon="event_upcoming" label={`Projected Transitions · ${monthName}`} value={antTrans} accent="var(--sky)" size="lg"
-          foot="still to transition" footDir="flat" onClick={()=>goTo("pipeline")} />
+        <KPI icon="event_upcoming" label={`Projected to Success · ${monthName}`} value={antTrans} accent="var(--sky)" size="lg"
+          foot="still to move to Success" footDir="flat" onClick={()=>goTo("pipeline")} />
       </div>
       <div className="kpi-grid kpi-secondary">
-        <KPI icon="warning" label="Open Escalations" value={escAccts.length} accent="var(--red)" size="sm"
-          foot={`${atRisk.length} at risk · ${fmtK(cmrrAtRisk)} CMRR`} footDir="flat" onClick={()=>goTo("escalations")} />
-        <KPI icon="schedule" label="Avg Cycle Time" value={avgCycleWeeks.toFixed(1)} unit="wks" accent="var(--sky)" size="sm"
-          foot={`${ctOver4} logos over 4-wk threshold`} footDir={ctOver4?"dn":"flat"} onClick={()=>goTo("performance")} />
+        <KPI icon="schedule" label="Avg Start to Live" value={avgToLive==null?"-":avgToLive.toFixed(1)} unit={avgToLive==null?"":"wks"} accent="var(--green)" size="sm"
+          foot="kickoff to go-live, last 6 months" footDir="flat" onClick={()=>goTo("performance")} />
+        <KPI icon="schedule" label="Avg Live to Success" value={avgToSuccess==null?"-":avgToSuccess.toFixed(1)} unit={avgToSuccess==null?"":"wks"} accent="var(--sky)" size="sm"
+          foot="go-live to Success transition, last 6 months" footDir="flat" onClick={()=>goTo("performance")} />
       </div>
 
       {/* Salesforce compliance */}
@@ -174,80 +176,6 @@ function Home({ accounts, onOpen, goTo, goToCompliance }) {
       ) : (
         <MonthGrid anchor={monthAnchor} setAnchor={setMonthAnchor} dayEvents={dayEvents} />
       )}
-
-      <div className="grid-2" style={{ gridTemplateColumns:"1.1fr 1fr", alignItems:"start" }}>
-        {/* Escalations needing attention */}
-        <Card title="Escalations Needing Attention" count={escAccts.length}
-          action={<button className="btn btn-sm btn-ghost" onClick={()=>goTo("escalations")}>View all <MI>arrow_forward</MI></button>}>
-          {escAccts.length===0 ? <Empty icon="verified" title="All clear" sub="No open escalations right now." /> :
-            escAccts.sort((a,b)=>P.ageDays(b.escalation.opened)-P.ageDays(a.escalation.opened)).slice(0,5).map(a => {
-              const e=a.escalation; const sev=P.SEV[e.severity]||{c:"var(--fg-2)"};
-              return <div className="lrow" key={a.id} onClick={()=>onOpen(a)}>
-                <AgePill days={P.ageDays(e.opened)} />
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:7 }}>
-                    <span className="acct-name" style={{ fontSize:13.5 }}>{a.tenant}</span>
-                    <HsChip hs={a.hs} />
-                  </div>
-                  <div style={{ fontSize:11.5, color:"var(--fg-3)", marginTop:3, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", maxWidth:340 }}>
-                    <MI style={{fontSize:13, verticalAlign:"-2px", color:"var(--sky)"}}>bolt</MI> {e.nextAction || "No next action set"}</div>
-                </div>
-                <div style={{ textAlign:"right", flexShrink:0 }}>
-                  <span className="chip" style={{ background:"var(--soft)", borderColor:sev.c, color:sev.c }}>{e.severity.split(" · ")[0]}</span>
-                  <div style={{ fontSize:11, color:"var(--fg-3)", marginTop:4, fontWeight:700 }}><Avatar name={e.owner} size={16} /> {firstName(e.owner)}</div>
-                </div>
-              </div>;
-            })}
-        </Card>
-
-        <div className="col" style={{ gap:16 }}>
-          {/* Team health summary */}
-          <Card title="Team Health" count={`${P.team.length} ICs`}
-            action={<button className="btn btn-sm btn-ghost" onClick={()=>goTo("team")}>Details <MI>arrow_forward</MI></button>}>
-            <div style={{ padding:"6px 0" }}>
-              {P.team.map(t => {
-                const mine = accounts.filter(a=>a.ic===t.name);
-                const risk = mine.filter(isEsc).length;
-                const buckets = { good:0, mid:0, bad:0, none:0 };
-                mine.forEach(a=>{ if(a.hs==null)buckets.none++; else if(a.hs>=5)buckets.good++; else if(a.hs>=4)buckets.mid++; else buckets.bad++; });
-                const tot = mine.length||1;
-                return <div className="lrow" key={t.name} onClick={()=>goTo("team")} style={{ padding:"9px 14px" }}>
-                  <Avatar name={t.name} size={26} />
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ display:"flex", justifyContent:"space-between", fontSize:12.5 }}>
-                      <span style={{ fontWeight:700 }}>{firstName(t.name)} {t.name.split(" ")[1][0]}.</span>
-                      <span style={{ color: risk?"var(--red)":"var(--fg-3)", fontWeight:700 }}>{risk?`${risk} at risk`:`${mine.length} healthy`}</span>
-                    </div>
-                    <div className="bar-stack" style={{ marginTop:6 }}>
-                      <span style={{ width:(buckets.good/tot*100)+"%", background:"var(--green)" }} />
-                      <span style={{ width:(buckets.mid/tot*100)+"%", background:"var(--sky)" }} />
-                      <span style={{ width:(buckets.bad/tot*100)+"%", background:"var(--red)" }} />
-                      <span style={{ width:(buckets.none/tot*100)+"%", background:"var(--track-empty)" }} />
-                    </div>
-                  </div>
-                </div>;
-              })}
-            </div>
-          </Card>
-
-          {/* Follow-ups due */}
-          <Card title="Follow-ups Due" count={followUps.length}>
-            {followUps.length===0 ? <Empty icon="event_available" title="Nothing due" sub="No follow-ups in the next 3 days." /> :
-              followUps.slice(0,5).map(a => {
-                const fd = Math.ceil((new Date(a.followUpDate)-now)/86400000);
-                return <div className="lrow" key={a.id} onClick={()=>onOpen(a)} style={{ padding:"10px 14px" }}>
-                  <span className="chip" style={{ background: fd<0?"rgba(226,79,79,.14)":fd===0?"rgba(245,193,67,.14)":"var(--soft)", color: fd<0?"var(--red)":fd===0?"var(--yellow)":"var(--fg-2)", borderColor: fd<0?"rgba(226,79,79,.4)":"var(--line)" }}>{relDay(a.followUpDate)}</span>
-                  <span className="acct-name" style={{ fontSize:13, flex:1, minWidth:0, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{a.tenant}</span>
-                  <SentDot s={a.sentiment} />
-                  <span style={{ fontSize:11.5, color:"var(--fg-3)", fontWeight:700 }}>{firstName(a.ic)}</span>
-                </div>;
-              })}
-          </Card>
-
-          {/* Shared tasks assigned to me */}
-          <SharedTasksCard onOpen={onOpen} goTo={goTo} />
-        </div>
-      </div>
 
       {/* Upcoming Kickoffs */}
       {(() => {

@@ -5,8 +5,6 @@ const NAV = [
   { sec: "Overview" },
   { id: "home", label: "Home", icon: "dashboard" },
   { id: "todos", label: "To-Dos", icon: "checklist" },
-  { id: "tasks", label: "Tasks", icon: "assignment" },
-  { id: "escalations", label: "Escalations", icon: "warning" },
   { id: "compliance", label: "Compliance", icon: "rule" },
   { sec: "Portfolio" },
   { id: "portfolio", label: "Accounts", icon: "list_alt" },
@@ -15,7 +13,6 @@ const NAV = [
   { sec: "Insights" },
   { id: "oneonone", label: "1:1 Prep", icon: "summarize" },
   { id: "performance", label: "Performance", icon: "leaderboard" },
-  { id: "csat", label: "CSAT", icon: "reviews" },
   { sec: "Admin" },
   { id: "settings", label: "Settings", icon: "settings" },
 ];

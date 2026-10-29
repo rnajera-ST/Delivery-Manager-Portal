@@ -1157,13 +1157,21 @@ def api_data():
                 ct_raw = run_query(f"""
                     SELECT
                         ONBOARDER_NAME_ACCNT AS ic,
-                        DATEDIFF('DAY', IMPLEMENTATION_START_DATE_OB, SUCCESS_TRANSITION_CALL_DATE_OB) AS ct_days
+                        DATEDIFF('DAY', IMPLEMENTATION_START_DATE_OB, SUCCESS_TRANSITION_CALL_DATE_OB) AS ct_days,
+                        DATEDIFF('DAY', IMPLEMENTATION_START_DATE_OB, LIVE_DATE_OB) AS live_days,
+                        DATEDIFF('DAY', LIVE_DATE_OB, SUCCESS_TRANSITION_CALL_DATE_OB) AS success_days
                     FROM FACT_OB_IMPL_PS_IMPLEMENTATION
                     WHERE ONBOARDER_NAME_ACCNT IN ({in_clause(get_ic_names())})
                     AND SUCCESS_TRANSITION_CALL_DATE_OB IS NOT NULL
                     AND SUCCESS_TRANSITION_CALL_DATE_OB >= DATEADD('MONTH', -6, CURRENT_DATE())
                 """)
-                ct_data = [{"ic": r.get("IC") or r.get("ic", ""), "days": int(r.get("CT_DAYS") or r.get("ct_days") or 0)} for r in ct_raw]
+                def _d(r, k):
+                    v = r.get(k.upper())
+                    if v is None:
+                        v = r.get(k)
+                    return int(v) if v is not None else None
+                ct_data = [{"ic": r.get("IC") or r.get("ic", ""), "days": _d(r, "ct_days") or 0,
+                            "liveDays": _d(r, "live_days"), "successDays": _d(r, "success_days")} for r in ct_raw]
             except Exception as e:
                 print(f"Cycle time query error: {e}", file=sys.stderr)
 
