@@ -11,6 +11,7 @@ const NAV = [
   { sec: "Portfolio" },
   { id: "portfolio", label: "Accounts", icon: "list_alt" },
   { id: "team", label: "Team", icon: "groups" },
+  { id: "capacity", label: "Capacity", icon: "stacked_bar_chart" },
   { sec: "Insights" },
   { id: "oneonone", label: "1:1 Prep", icon: "summarize" },
   { id: "performance", label: "Performance", icon: "leaderboard" },
@@ -61,6 +62,7 @@ const TITLES = {
   escalations: ["Escalation Tracker", "Active risks across your portfolio"],
   portfolio: ["Accounts", "Every account your team manages — list or pipeline view"],
   team: ["Team", "Workload & health by Implementation Consultant"],
+  capacity: ["Capacity", "MAX backlog and resource assignment tracker"],
   oneonone: ["1:1 Prep", "Pull a per-IC summary for your next meeting"],
   csat: ["Customer Satisfaction", "Survey responses across the team"],
   managers: ["Managers", "Compare every manager and their team"],
@@ -257,6 +259,7 @@ function App() {
   else if (view === "escalations") body = <Escalations accounts={accounts} onOpen={onOpen} onSave={onSave} />;
   else if (view === "portfolio") body = <AccountsView accounts={accounts} onOpen={onOpen} senior={role === "senior-manager"} />;
   else if (view === "team") body = <Team accounts={accounts} onOpen={onOpen} goTo={goTo} setIcFocus={setIcFocus} />;
+  else if (view === "capacity") body = <CapacityView />;
   else if (view === "oneonone") body = role === "senior-manager"
     ? <SeniorOneOnOne accounts={accounts} onOpen={onOpen} goToCompliance={goToCompliance} mgrFocus={managerFocus} setMgrFocus={setManagerFocus} />
     : <OneOnOne accounts={accounts} onOpen={onOpen} icFocus={icFocus} setIcFocus={setIcFocus} />;

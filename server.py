@@ -1601,6 +1601,42 @@ def api_portal_status():
     })
 
 
+# ── API: MAX capacity tracker (read-only view of the Google Sheet) ─────────
+
+CAPACITY_SHEET_ID = "1VEyq5hke8odHLfzXbbf88ZHbcz6k9jOMU_BIZ-TEv4A"  # MAX New Logo Backlog & Resource Assignment Tracker
+CAPACITY_SHEET_URL = f"https://docs.google.com/spreadsheets/d/{CAPACITY_SHEET_ID}/edit"
+CAPACITY_DEFAULT_TAB = "Capacity Tracker"
+CAPACITY_MAX_ROWS = 500
+
+
+@app.route("/api/capacity", methods=["GET"])
+def api_capacity():
+    """Read one tab of the capacity tracker sheet. Read-only. The tab name is
+    checked against the sheet's real tab titles, so a range is never built from
+    raw user input."""
+    base = {"url": CAPACITY_SHEET_URL, "tabs": [], "tab": "", "values": [], "truncated": False}
+    svc = get_sheets_service()
+    if svc is None:
+        return jsonify({**base, "connected": False})
+    try:
+        meta = svc.spreadsheets().get(spreadsheetId=CAPACITY_SHEET_ID, fields="sheets.properties.title").execute()
+        tabs = [s["properties"]["title"] for s in meta.get("sheets", [])]
+        tab = request.args.get("tab") or CAPACITY_DEFAULT_TAB
+        if tab not in tabs:
+            tab = CAPACITY_DEFAULT_TAB if CAPACITY_DEFAULT_TAB in tabs else (tabs[0] if tabs else "")
+        values = []
+        if tab:
+            rng = "'" + tab.replace("'", "''") + "'"
+            values = svc.spreadsheets().values().get(
+                spreadsheetId=CAPACITY_SHEET_ID, range=rng, valueRenderOption="FORMATTED_VALUE"
+            ).execute().get("values", [])
+        truncated = len(values) > CAPACITY_MAX_ROWS
+        return jsonify({**base, "connected": True, "tabs": tabs, "tab": tab,
+                        "values": values[:CAPACITY_MAX_ROWS], "truncated": truncated})
+    except Exception as e:
+        return jsonify({**base, "connected": True, "error": str(e)})
+
+
 # ── API: Identity diagnostics (read-only) ──────────────────────────────────
 
 @app.route("/api/debug/identity", methods=["GET"])
