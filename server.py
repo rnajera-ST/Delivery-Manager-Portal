@@ -1624,6 +1624,25 @@ def api_debug_identity():
             WHERE LOWER(ONBOARDER_MANAGER_EMAIL_ACCNT) LIKE '%{local}%'
             GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 10
         """)
+        # How much of the table can this login see at all (row-level security check)?
+        out["totalRowsVisibleToYou"] = run_query(
+            "SELECT COUNT(*) AS N FROM FACT_OB_IMPL_PS_IMPLEMENTATION")[0].get("N")
+        out["topManagersVisibleToYou"] = run_query("""
+            SELECT ONBOARDER_MANAGER_ACCNT AS MANAGER_NAME, ONBOARDER_MANAGER_EMAIL_ACCNT AS MANAGER_EMAIL, COUNT(*) AS ACCOUNTS
+            FROM FACT_OB_IMPL_PS_IMPLEMENTATION
+            GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 15
+        """)
+        # Where do specific ICs sit? Pass names: /api/debug/identity?ics=Davon,Parris
+        ics = [x.strip() for x in (request.args.get("ics") or "").split(",") if x.strip()]
+        if ics:
+            cond = " OR ".join(f"ONBOARDER_NAME_ACCNT ILIKE '%{_sql_str(x)}%'" for x in ics[:8])
+            out["icLookup"] = run_query(f"""
+                SELECT ONBOARDER_NAME_ACCNT AS IC, ONBOARDER_MANAGER_ACCNT AS MANAGER_NAME,
+                       ONBOARDER_MANAGER_EMAIL_ACCNT AS MANAGER_EMAIL, ONBOARDING_STATUS_OB AS STATUS, COUNT(*) AS ACCOUNTS
+                FROM FACT_OB_IMPL_PS_IMPLEMENTATION
+                WHERE {cond}
+                GROUP BY 1, 2, 3, 4 ORDER BY 1, 5 DESC LIMIT 60
+            """)
         last = _sql_str((load_config().get("manager", {}).get("fullName") or "").strip().split(" ")[-1])
         if last:
             out["managersWithYourLastName"] = run_query(f"""
