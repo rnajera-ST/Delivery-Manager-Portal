@@ -100,7 +100,7 @@ function OverviewTab({ a, wk, cycle, m }) {
     <div className="view-enter">
       <div className="dgrid" style={{ marginBottom:16 }}>
         <Dcell l="OB Health" v={a.hs!=null ? `${a.hs} · ${m.l}` : "Missing"} alert={a.hs!=null && a.hs<=3} />
-        <Dcell l="Health Updated" v={hsAge!=null ? (hsAge===0 ? "Today" : hsAge + "d ago") : "Never"} alert={(hsAge==null || hsAge>14) && (a.status==="Implementation" || a.status==="Live")} />
+        <Dcell l="Health Updated" v={hsAge!=null ? (hsAge===0 ? "Today" : hsAge + "d ago") : "Never"} alert={(hsAge==null || hsAge>window.HS_STALE_DAYS) && (a.status==="Implementation" || a.status==="Live")} />
         <Dcell l="CMRR" v={fmtMoney(a.cmrr)} />
         <Dcell l="Outstanding Balance" v={a.outstandingBalance < 0 ? fmtMoney(a.outstandingBalance) : "—"} alert={a.outstandingBalance < 0} />
         <Dcell l="Managed Techs" v={a.techs} />
@@ -241,7 +241,7 @@ function AuditTab({ a }) {
 
       <div className="dgrid" style={{ marginBottom:16 }}>
         <Dcell l="PGL Confidence" v={a.pglConfidence} />
-        <Dcell l="Health updated" v={staleDays!=null?staleDays+"d ago":"—"} alert={staleDays!=null&&staleDays>14} />
+        <Dcell l="Health updated" v={staleDays!=null?(staleDays===0?"Today":staleDays+"d ago"):"Never"} alert={(staleDays==null||staleDays>window.HS_STALE_DAYS) && (a.status==="Implementation"||a.status==="Live")} />
         <Dcell l="Prev. software" v={a.previousSoftware} />
         <Dcell l="Package" v={a.packageName} />
         <Dcell l="Account level" v={a.accountLevel} />

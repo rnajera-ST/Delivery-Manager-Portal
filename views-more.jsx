@@ -636,7 +636,7 @@ function seniorComplianceFlags(a) {
   let n = 0;
   if (a.hs == null && a.status !== "Pre-Implementation") n++;
   if (a.hs != null && !a.hsComment) n++;
-  if (a.hsLastUpdated && P.ageDays(a.hsLastUpdated) > 14) n++;
+  if (a.hsLastUpdated && P.ageDays(a.hsLastUpdated) > window.HS_STALE_DAYS) n++;
   if (a.pgl && new Date(a.pgl) < P.now && a.status !== "Live" && a.status !== "Hold") n++;
   if (a.antTransitionDate && new Date(a.antTransitionDate) < P.now && !a.transitioned && a.status !== "Hold") n++;
   return n;
@@ -1460,8 +1460,8 @@ function ComplianceView({ accounts, onOpen, focus, senior }) {
       test:a => a.hs==null && a.status!=="Pre-Implementation", detail:a => "No health score entered" },
     { key:"noComments", label:"Missing HS comments", short:"No HS comments", color:"var(--yellow)", icon:"comment",
       test:a => a.hs!=null && !a.hsComment, detail:a => `Score ${a.hs}, no comments` },
-    { key:"staleHS", label:"Stale health score (>14d)", short:"Stale HS", color:"var(--yellow)", icon:"update",
-      test:a => a.hsLastUpdated && P.ageDays(a.hsLastUpdated)>14, detail:a => `Updated ${P.ageDays(a.hsLastUpdated)}d ago` },
+    { key:"staleHS", label:"Stale health score (>7d)", short:"Stale HS", color:"var(--yellow)", icon:"update",
+      test:a => a.hsLastUpdated && P.ageDays(a.hsLastUpdated)>window.HS_STALE_DAYS, detail:a => `Updated ${P.ageDays(a.hsLastUpdated)}d ago` },
     { key:"pglOverdue", label:"Go-live date passed", short:"Go-live passed", color:"var(--red)", icon:"event_busy",
       test:a => a.pgl && new Date(a.pgl)<now && a.status!=="Live" && a.status!=="Hold", detail:a => `PGL ${fmtDate(a.pgl)} · ${P.ageDays(a.pgl)}d ago` },
     { key:"transOverdue", label:"Transition overdue", short:"Transition overdue", color:"var(--red)", icon:"schedule",

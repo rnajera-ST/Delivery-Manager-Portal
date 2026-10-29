@@ -1,3 +1,6 @@
+// Health score is stale after this many days without an update.
+window.HS_STALE_DAYS = 7;
+
 /* ===========================================================
    Data loader for Onboarding Manager Portal
    Fetches real data from the Flask backend, then populates

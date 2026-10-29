@@ -127,6 +127,7 @@ MCP_SERVERS_FILE = DATA_DIR / "mcp-servers.json"
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_VERSION = "2023-06-01"
 ANTHROPIC_MCP_BETA = "mcp-client-2025-11-20"
+HS_STALE_DAYS = 7  # health score is stale after this many days
 AGENT_MODEL = "claude-sonnet-4-6"  # claude-sonnet-4-20250514 is deprecated (retires 2026-06-15)
 AGENT_MAX_TOKENS = 4096
 
@@ -2823,7 +2824,7 @@ def _account_compliance_issues(row, today):
         issues.append(f"PGL overdue, was {_fmt_short_date(pgl)}")
     if ant and ant < today and not transitioned:
         issues.append(f"transition overdue, was {_fmt_short_date(ant)}")
-    if hs_updated and (today - hs_updated).days > 14:
+    if hs_updated and (today - hs_updated).days > HS_STALE_DAYS:
         issues.append(f"health score not updated in {(today - hs_updated).days} days")
     if ant and pgl and ant < pgl:
         issues.append("transition date is before go-live")
@@ -3243,7 +3244,7 @@ def api_manager_stats():
         issues = 0
         if hs is None and st != "Pre-Implementation": issues += 1
         if hs is not None and not comments: issues += 1
-        if hs_upd and (today - hs_upd).days > 14: issues += 1
+        if hs_upd and (today - hs_upd).days > HS_STALE_DAYS: issues += 1
         if pgl and pgl < today and st not in ("Live", "Hold"): issues += 1
         if ant and ant < today and st != "Hold": issues += 1
         m["compliance"] += issues
@@ -4656,7 +4657,7 @@ def _agent_dashboard(account_id=None):
                 issues.append("missing health score")
             if hs is not None and not comments:
                 issues.append("no HS comments")
-            if hs_upd and (today - hs_upd).days > 14:
+            if hs_upd and (today - hs_upd).days > HS_STALE_DAYS:
                 issues.append("stale health score")
             if pgl and pgl < today and status not in ("Live", "Hold"):
                 issues.append("go-live date passed")

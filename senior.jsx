@@ -36,7 +36,7 @@
       let iss = 0;
       if (a.hs == null && a.status !== "Pre-Implementation") iss++;
       if (a.hs != null && !a.hsComment) iss++;
-      if (a.hsLastUpdated && P.ageDays(a.hsLastUpdated) > 14) iss++;
+      if (a.hsLastUpdated && P.ageDays(a.hsLastUpdated) > window.HS_STALE_DAYS) iss++;
       if (a.pgl && new Date(a.pgl) < today && a.status !== "Live" && a.status !== "Hold") iss++;
       if (a.antTransitionDate && new Date(a.antTransitionDate) < today && !a.transitioned && a.status !== "Hold") iss++;
       r.compliance += iss;
