@@ -1,0 +1,205 @@
+/* ===========================================================
+   ServiceTitan Design System — Colors & Type
+   Source: ServiceTitan Professional Services Style Guide (2022)
+   =========================================================== */
+
+/* Webfonts — Sofia Pro is Adobe-licensed; Poppins is the
+   approved Google Fonts substitute called out in the guide.
+   Nunito is the primary body face. */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Nunito:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+  /* ── Brand color palette (the six ServiceTitan colors) ── */
+  --st-titan-blue:  #2270EE;   /* Primary */
+  --st-skyline:     #6DBAF8;   /* Primary — lighter */
+  --st-surrender:   #FFFFFF;   /* Secondary — white */
+  --st-darkest:     #17191C;   /* Secondary — near-black */
+  --st-dark:        #22252A;   /* Secondary — dark-mode surface */
+  --st-critical:    #E24F4F;   /* Accent — red */
+
+  /* Supporting neutrals (derived — used in the guide itself) */
+  --st-success:     #34C97B;
+  --st-warning:     #F5C143;
+
+  /* ── Semantic foreground (on dark surface by default) ── */
+  --fg-1: rgba(255, 255, 255, 1);      /* primary text        */
+  --fg-2: rgba(255, 255, 255, 0.65);   /* body/secondary      */
+  --fg-3: rgba(255, 255, 255, 0.45);   /* tertiary            */
+  --fg-4: rgba(255, 255, 255, 0.30);   /* quaternary / hints  */
+  --fg-muted: rgba(255, 255, 255, 0.08); /* dividers/hairlines */
+
+  /* Foreground on light surfaces */
+  --fg-on-light-1: #17191C;
+  --fg-on-light-2: rgba(23, 25, 28, 0.70);
+  --fg-on-light-3: rgba(23, 25, 28, 0.45);
+
+  /* Surfaces */
+  --bg-page:     var(--st-darkest);
+  --bg-surface:  var(--st-dark);
+  --bg-elevated: #2A2D33;
+  --bg-inverse:  var(--st-surrender);
+
+  /* Borders */
+  --border-hairline: rgba(255, 255, 255, 0.07);
+  --border-subtle:   rgba(255, 255, 255, 0.12);
+  --border-strong:   rgba(255, 255, 255, 0.25);
+
+  /* Accent tints */
+  --tint-blue-08: rgba(34, 112, 238, 0.08);
+  --tint-blue-15: rgba(34, 112, 238, 0.15);
+  --tint-blue-30: rgba(34, 112, 238, 0.30);
+  --tint-red-10:  rgba(226, 79, 79, 0.10);
+  --tint-red-25:  rgba(226, 79, 79, 0.25);
+
+  /* ── Font stacks ── */
+  --font-display: 'Sofia Pro', 'Poppins', system-ui, -apple-system, Segoe UI, sans-serif;
+  --font-body:    'Nunito', system-ui, -apple-system, Segoe UI, sans-serif;
+  --font-mono:    ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* ── Type scale (matches style-guide reference table) ── */
+  --fs-display:    96px;  /* Display / hero                   */
+  --fs-h1:         60px;  /* Page headline                    */
+  --fs-h2:         48px;  /* Section heading                  */
+  --fs-h3:         32px;  /* Sub-heading                      */
+  --fs-h4:         24px;
+  --fs-lead:       18px;  /* Lead paragraph                   */
+  --fs-body:       16px;  /* Standard body copy               */
+  --fs-sm:         14px;
+  --fs-xs:         13px;  /* Label / eyebrow / caption        */
+  --fs-xxs:        11px;  /* Tiny label, all-caps             */
+
+  --lh-tight:      1.0;
+  --lh-snug:       1.1;
+  --lh-normal:     1.5;
+  --lh-relaxed:    1.7;
+
+  --ls-display:   -3px;
+  --ls-tight:     -1.5px;
+  --ls-snug:      -0.5px;
+  --ls-normal:     0;
+  --ls-label:      2px;    /* eyebrows / small caps */
+  --ls-label-lg:   3px;
+
+  /* ── Radii ── */
+  --r-xs:  4px;
+  --r-sm:  6px;
+  --r-md:  8px;
+  --r-lg:  12px;
+  --r-xl:  16px;
+  --r-pill: 999px;
+
+  /* ── Spacing (8pt base) ── */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+  --sp-8: 64px;
+  --sp-9: 96px;
+  --sp-10: 120px;
+
+  /* ── Shadows ── */
+  --shadow-sm:  0 1px 2px rgba(0,0,0,0.30);
+  --shadow-md:  0 8px 16px rgba(0,0,0,0.35);
+  --shadow-lg:  0 24px 48px rgba(0,0,0,0.40);
+  --shadow-blue: 0 8px 24px rgba(34,112,238,0.35);
+
+  /* Motion */
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-fast:   0.15s;
+  --dur-base:   0.25s;
+  --dur-slow:   0.4s;
+}
+
+/* ============================================================
+   Semantic tag defaults (opt-in by scoping to .st-prose or body)
+   ============================================================ */
+.st-root,
+.st-prose {
+  color: var(--fg-1);
+  background: var(--bg-page);
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  line-height: var(--lh-relaxed);
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+}
+
+.st-prose h1, .st-h1 {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(48px, 7vw, var(--fs-display));
+  line-height: var(--lh-tight);
+  letter-spacing: var(--ls-display);
+  color: var(--fg-1);
+}
+
+.st-prose h2, .st-h2 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(28px, 4vw, var(--fs-h2));
+  line-height: var(--lh-snug);
+  letter-spacing: var(--ls-tight);
+  color: var(--fg-1);
+}
+
+.st-prose h3, .st-h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--fs-h3);
+  letter-spacing: var(--ls-snug);
+  line-height: var(--lh-snug);
+  color: var(--fg-1);
+}
+
+.st-prose h4, .st-h4 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--fs-h4);
+  letter-spacing: var(--ls-snug);
+  color: var(--fg-1);
+}
+
+.st-prose p, .st-body {
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  line-height: var(--lh-relaxed);
+  color: var(--fg-2);
+}
+
+.st-lead {
+  font-size: var(--fs-lead);
+  line-height: var(--lh-relaxed);
+  color: var(--fg-2);
+}
+
+.st-eyebrow, .st-label {
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: var(--ls-label-lg);
+  text-transform: uppercase;
+  color: var(--st-titan-blue);
+}
+
+.st-caption {
+  font-size: var(--fs-xs);
+  color: var(--fg-3);
+  font-weight: 600;
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+}
+
+.st-mono, code.st-code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
+.st-prose a, .st-link {
+  color: var(--st-skyline);
+  text-decoration: none;
+  transition: color var(--dur-base) var(--ease-standard);
+}
+.st-prose a:hover, .st-link:hover { color: var(--st-titan-blue); }

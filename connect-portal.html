@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Connect Portal</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Nunito Sans',system-ui,sans-serif;background:#0d0d1a;color:#e0e0e0;display:flex;align-items:center;justify-content:center;min-height:100vh}
+  .card{background:#1a1a2e;border-radius:12px;padding:40px;max-width:520px;width:100%;text-align:center}
+  h1{font-size:20px;margin-bottom:8px;color:#fff}
+  .sub{font-size:14px;color:#888;margin-bottom:24px}
+  .status{padding:12px 16px;border-radius:8px;margin:12px 0;font-size:14px;text-align:left}
+  .status.success{background:rgba(52,201,123,.15);border:1px solid rgba(52,201,123,.3);color:#34C97B}
+  .status.error{background:rgba(226,79,79,.15);border:1px solid rgba(226,79,79,.3);color:#E24F4F}
+  .status.loading{background:rgba(2,101,220,.15);border:1px solid rgba(2,101,220,.3);color:#6DBAF8}
+  .status.warn{background:rgba(245,193,67,.15);border:1px solid rgba(245,193,67,.3);color:#F5C143}
+  button{padding:12px 24px;border-radius:8px;border:none;font-size:14px;font-weight:600;cursor:pointer;margin:8px 4px}
+  .btn-primary{background:#0265DC;color:#fff}
+  .btn-primary:hover{background:#0254b8}
+  .btn-secondary{background:#2a2a3e;color:#aaa;border:1px solid #333}
+  .btn-secondary:hover{background:#333;color:#fff}
+  .steps{text-align:left;margin:16px 0}
+  .step{font-size:13px;padding:4px 0;color:#aaa}
+  .step.active{color:#6DBAF8}
+  .step.done{color:#34C97B}
+  .step.done::before{content:"✓ "}
+  .step.active::before{content:"→ "}
+  .step.pending::before{content:"○ "}
+  code{background:#2a2a3e;padding:2px 6px;border-radius:4px;font-size:12px}
+  .bookmarklet{display:inline-block;padding:10px 20px;background:#0265DC;color:#fff;border-radius:8px;font-weight:600;text-decoration:none;margin:12px 0;font-size:14px}
+  .bookmarklet:hover{background:#0254b8}
+  .instructions{text-align:left;font-size:13px;color:#aaa;line-height:1.7}
+  .instructions li{margin:4px 0}
+  #log{font-size:11px;color:#555;margin-top:12px;max-height:100px;overflow-y:auto;text-align:left;font-family:monospace}
+</style>
+</head>
+<body>
+<div class="card" id="main">
+  <h1>Connect Onboarding Portal</h1>
+  <div class="sub">One-time setup, then one click per session</div>
+
+  <div id="cached" style="display:none"></div>
+
+  <div id="setup">
+    <div class="status warn">
+      <strong>Setup (one time only):</strong> Drag the blue button below to your bookmarks bar.
+    </div>
+
+    <p style="margin:16px 0">
+      <a class="bookmarklet" id="bmk" href="#">⚡ Sync Portal</a>
+    </p>
+
+    <ol class="instructions">
+      <li>Make sure your <strong>bookmarks bar is visible</strong> (Cmd+Shift+B)</li>
+      <li><strong>Drag</strong> the blue "⚡ Sync Portal" button above to your bookmarks bar</li>
+      <li>Go to the <a href="https://custom-wizards.westus2-01.prod.prod.customer-journey.srv.servicetitan.com/admin/onboarding-portal/pipeline" target="_blank" style="color:#6DBAF8">Onboarding Portal</a> (log in if needed)</li>
+      <li>While on the portal page, <strong>click the bookmark</strong> you just saved</li>
+      <li>Wait for the sync to complete, then come back here</li>
+    </ol>
+  </div>
+
+  <div id="syncing" style="display:none">
+    <div class="status loading" id="syncStatus">Syncing portal data...</div>
+    <div class="steps" id="steps"></div>
+  </div>
+
+  <div id="done" style="display:none">
+    <div class="status success">Portal data synced! Go back to the dashboard.</div>
+    <button class="btn-primary" onclick="window.location.href='/'">Go to Dashboard</button>
+  </div>
+
+  <div id="log"></div>
+</div>
+
+<script>
+// Build the bookmarklet code
+// This runs ON the portal page, fetches data, and POSTs to localhost:5001
+const bmkCode = `javascript:void((async function(){
+  const F='http://localhost:5001';
+  const B='https://custom-wizards.westus2-01.prod.prod.customer-journey.srv.servicetitan.com';
+  try{
+    document.title='Syncing...';
+    const me=await(await fetch(B+'/admin/api/v1/onboarding-portal/me',{headers:{'x-requested-with':'XMLHttpRequest'}})).json();
+    document.title='Syncing (1/3)...';
+    const sfIds=me.map(t=>t.salesforceId).filter(Boolean);
+    const engUrl=B+'/admin/api/v1/onboarding-portal/engagement-score/tenants?'+sfIds.map(id=>'salesforceIds='+id).join('&');
+    const eng=await(await fetch(engUrl,{headers:{'x-requested-with':'XMLHttpRequest'}})).json();
+    document.title='Syncing (2/3)...';
+    const details={};
+    for(const t of me){
+      try{
+        const d=await(await fetch(B+'/admin/api/v1/onboarding-portal/tenants/'+t.salesforceId,{headers:{'x-requested-with':'XMLHttpRequest'}})).json();
+        details[t.salesforceId]=d;
+      }catch(e){}
+    }
+    document.title='Syncing (3/3)...';
+    await fetch(F+'/api/portal-sync/receive',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({me:me,engagement:eng,details:details,syncedAt:new Date().toISOString()})
+    });
+    document.title='Sync complete!';
+    alert('Portal data synced to Manager Dashboard!');
+  }catch(e){
+    document.title='Sync failed';
+    alert('Sync failed: '+e.message);
+  }
+})())`;
+
+// But that bookmarklet only syncs Roberto's OWN portal accounts
+// For IC accounts, we need a different approach: fetch by SF IDs from Snowflake
+// The bookmarklet needs to first get the SF IDs from Flask, then fetch portal data for each
+
+const bmkCode2 = `javascript:void((async function(){
+  const F='http://localhost:5001';
+  const B='https://custom-wizards.westus2-01.prod.prod.customer-journey.srv.servicetitan.com';
+  try{
+    document.title='⚡ Getting account list...';
+    const accts=await(await fetch(F+'/api/portal-sync/accounts')).json();
+    const sfIds=accts.ids||[];
+    if(!sfIds.length){alert('No accounts found. Is the dashboard running?');return}
+    document.title='⚡ Fetching engagement ('+sfIds.length+' accounts)...';
+    const engUrl=B+'/admin/api/v1/onboarding-portal/engagement-score/tenants?'+sfIds.map(id=>'salesforceIds='+id).join('&');
+    let eng=[];
+    try{eng=await(await fetch(engUrl,{headers:{'x-requested-with':'XMLHttpRequest'},credentials:'include'})).json()}catch(e){console.warn('Engagement fetch failed',e)}
+    document.title='⚡ Fetching my pipeline...';
+    let me=[];
+    try{me=await(await fetch(B+'/admin/api/v1/onboarding-portal/me',{headers:{'x-requested-with':'XMLHttpRequest'},credentials:'include'})).json()}catch(e){}
+    document.title='⚡ Fetching tenant details...';
+    const details={};
+    let done=0;
+    for(const id of sfIds){
+      try{
+        const d=await fetch(B+'/admin/api/v1/onboarding-portal/tenants/'+id,{headers:{'x-requested-with':'XMLHttpRequest'},credentials:'include'});
+        if(d.ok)details[id]=await d.json();
+      }catch(e){}
+      done++;
+      if(done%5===0)document.title='⚡ Details '+done+'/'+sfIds.length+'...';
+    }
+    document.title='⚡ Sending to dashboard...';
+    const resp=await fetch(F+'/api/portal-sync/receive',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({me:me,engagement:eng,details:details,ids:sfIds,syncedAt:new Date().toISOString()})
+    });
+    const result=await resp.json();
+    document.title='✅ Synced '+Object.keys(details).length+' accounts!';
+    alert('Synced '+Object.keys(details).length+' accounts to Manager Dashboard! Go back and refresh.');
+  }catch(e){
+    document.title='❌ Sync failed';
+    alert('Sync failed: '+e.message+'\\n\\nMake sure the dashboard (localhost:5001) is running.');
+  }
+})())`;
+
+document.getElementById('bmk').href = bmkCode2;
+
+// Reveal the sync instructions (bookmarklet + steps) so the user can pull fresh
+// data by clicking their saved "⚡ Sync Portal" bookmark on the portal page.
+function showSyncInstructions(){
+  document.getElementById('cached').style.display='none';
+  document.getElementById('setup').style.display='';
+}
+
+// Check if we already have portal data. If so, show a summary + a Re-sync button
+// that reveals the instructions again (rather than reloading to the same screen).
+fetch('/api/portal-sync/status').then(r=>r.json()).then(d=>{
+  if(d.hasCachedData){
+    document.getElementById('setup').style.display='none';
+    const c = document.getElementById('cached');
+    c.style.display='';
+    c.innerHTML = `
+      <div class="status success">
+        Portal data cached from ${new Date(d.syncedAt).toLocaleString()}.
+        ${d.accountCount} accounts synced.
+      </div>
+      <button class="btn-primary" onclick="window.location.href='/'">Go to Dashboard</button>
+      <button class="btn-secondary" id="resyncBtn">Re-sync</button>
+    `;
+    document.getElementById('resyncBtn').addEventListener('click', showSyncInstructions);
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+flask>=3.0
+snowflake-connector-python>=3.6
+requests>=2.31
+browser-cookie3>=0.19
+google-auth-oauthlib>=1.2
+google-api-python-client>=2.0

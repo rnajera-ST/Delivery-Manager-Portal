@@ -1,0 +1,10 @@
+.data/
+__pycache__/
+*.pyc
+.DS_Store
+
+# Per-manager local config (curated team/filters); not shared. App auto-detects if absent.
+config.json
+
+# OAuth client secrets must never be committed
+google-oauth.json

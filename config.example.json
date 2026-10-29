@@ -1,0 +1,22 @@
+{
+  "_comment": "OPTIONAL. You normally do NOT need this file — your name and team auto-detect from Snowflake based on your login (.data/snowflake-user.txt). Create a local config.json (copy this file) ONLY if you want to curate your roster: add borrowed/temp ICs from other teams, set per-IC account filters, or override levels/short names. config.json is gitignored, so it stays local to you.",
+  "manager": {
+    "name": "",
+    "fullName": "",
+    "initials": "",
+    "role": "Manager, SMB Implementation",
+    "reportsTo": "",
+    "skip": ""
+  },
+  "team": [
+    {
+      "_comment": "Example curated/borrowed IC with an account filter. 'name' must match ONBOARDER_NAME_ACCNT in Snowflake exactly.",
+      "name": "Jane Doe",
+      "short": "Jane D.",
+      "initials": "JD",
+      "level": "IC2",
+      "status": "Active",
+      "filter": { "onboardingType": "Corp 1:1" }
+    }
+  ]
+}
