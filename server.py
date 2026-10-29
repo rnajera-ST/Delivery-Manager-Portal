@@ -1601,6 +1601,45 @@ def api_portal_status():
     })
 
 
+# ── API: Identity diagnostics (read-only) ──────────────────────────────────
+
+@app.route("/api/debug/identity", methods=["GET"])
+def api_debug_identity():
+    """Explain why team auto-detection found (or did not find) a roster.
+    Read-only. Shows the email in use, the Snowflake role, how many rows match
+    that email exactly, and near-matches by email prefix and by manager name."""
+    out = {}
+    email = get_snowflake_user()
+    out["emailInUse"] = repr(email)  # repr() makes stray spaces or newlines visible
+    try:
+        out["snowflakeRole"] = run_query("SELECT CURRENT_ROLE() AS R")[0].get("R")
+        e = _sql_str(email.strip().lower())
+        out["rowsMatchingEmailExactly"] = run_query(
+            f"SELECT COUNT(*) AS N FROM FACT_OB_IMPL_PS_IMPLEMENTATION WHERE LOWER(ONBOARDER_MANAGER_EMAIL_ACCNT) = '{e}'"
+        )[0].get("N")
+        local = _sql_str(email.split("@")[0].strip().lower())
+        out["managerEmailsLikeYours"] = run_query(f"""
+            SELECT ONBOARDER_MANAGER_EMAIL_ACCNT AS MANAGER_EMAIL, ONBOARDER_MANAGER_ACCNT AS MANAGER_NAME, COUNT(*) AS ACCOUNTS
+            FROM FACT_OB_IMPL_PS_IMPLEMENTATION
+            WHERE LOWER(ONBOARDER_MANAGER_EMAIL_ACCNT) LIKE '%{local}%'
+            GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 10
+        """)
+        last = _sql_str((load_config().get("manager", {}).get("fullName") or "").strip().split(" ")[-1])
+        if last:
+            out["managersWithYourLastName"] = run_query(f"""
+                SELECT ONBOARDER_MANAGER_EMAIL_ACCNT AS MANAGER_EMAIL, ONBOARDER_MANAGER_ACCNT AS MANAGER_NAME, COUNT(*) AS ACCOUNTS
+                FROM FACT_OB_IMPL_PS_IMPLEMENTATION
+                WHERE ONBOARDER_MANAGER_ACCNT ILIKE '%{last}%'
+                GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 10
+            """)
+    except Exception as ex:
+        out["error"] = str(ex)
+    d = _detect_identity()
+    out["detected"] = {"managerName": d.get("managerName"), "teamSize": len(d.get("team", [])),
+                       "team": [t.get("name") for t in d.get("team", [])]}
+    return jsonify(out)
+
+
 # ── API: Team management ───────────────────────────────────────────────────
 
 @app.route("/api/config/team", methods=["GET"])
