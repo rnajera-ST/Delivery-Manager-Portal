@@ -18,6 +18,7 @@ function AccountDetail({ account, onClose, onSave, onOpenEsc }) {
   const tabs = [
     ["overview", "Overview"],
     ["audit", "Audit"],
+    ["obtasks", "OB Tasks"],
     ["tickets", `Tickets (${a.tickets.length + (a.churnTickets||[]).length})`],
     ["calendar", "Activity"],
     ["notes", "Notes & Actions"],
@@ -55,6 +56,7 @@ function AccountDetail({ account, onClose, onSave, onOpenEsc }) {
 
           {tab === "overview" && <OverviewTab a={a} wk={wk} cycle={cycle} m={m} />}
           {tab === "audit" && <AuditTab a={a} />}
+          {tab === "obtasks" && <ObTasksTab a={a} />}
           {tab === "tickets" && <TicketsTab a={a} commit={commit} rerender={rerender} />}
           {tab === "calendar" && <window.CalendarTab account={a} />}
           {tab === "notes" && <NotesTab a={a} edit={edit} commit={commit} rerender={rerender} fuDays={fuDays} />}
@@ -579,6 +581,61 @@ function ConcessionBlock({ e, commit, rerender }) {
             <MI style={{fontSize:14, verticalAlign:"-2px", color:tierInfo.c}}>verified_user</MI> Requires approval from <strong>{tierInfo.approver}</strong></div>}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ── OB Portal tasks (from the synced portal cache) ─────────────────────── */
+const OB_TASK_STATUS = {
+  "Not Started": "var(--fg-3)", "In Progress": "var(--yellow)", "On Hold": "var(--purple)",
+  "Action Needed": "var(--red)", "Won't Do": "var(--fg-4)", "Completed": "var(--green)",
+  "Submitted": "var(--sky)", "Approved": "var(--green)", "Rejected": "var(--red)",
+};
+const OB_TASK_DONE = new Set(["Completed", "Approved"]);
+
+function ObTasksTab({ a }) {
+  const [st, setSt] = useStateD({ loading: true, data: null });
+  React.useEffect(() => {
+    let off = false;
+    setSt({ loading: true, data: null });
+    fetch("/api/portal-sync/account/" + encodeURIComponent(a.id))
+      .then(r => r.json()).then(d => { if (!off) setSt({ loading: false, data: d }); })
+      .catch(() => { if (!off) setSt({ loading: false, data: { synced: false } }); });
+    return () => { off = true; };
+  }, [a.id]);
+
+  if (st.loading) return <div className="view-enter"><Empty icon="hourglass_empty" title="Loading tasks…" /></div>;
+  const d = st.data || {};
+  if (!d.synced) return <div className="view-enter"><Empty icon="sync_problem" title="OB Portal not synced" sub="Click the Sync Portal bookmark on the OB Portal page to load tasks." /></div>;
+  const raw = d.tasks;
+  const tasks = Array.isArray(raw) ? raw : ((raw && raw.tasks) || []);
+  if (!tasks.length) return <div className="view-enter"><Empty icon="checklist" title="No tasks" sub={raw == null ? "Tasks for this account weren't returned by the last sync. Re-run Sync Portal." : "No onboarding tasks found for this account."} /></div>;
+  const done = tasks.filter(t => OB_TASK_DONE.has(t.status)).length;
+  const isOver = t => !!(t.dueDate && !OB_TASK_DONE.has(t.status) && t.status !== "Won't Do" && new Date(t.dueDate) < new Date());
+  const sorted = tasks.slice().sort((x, y) => (x.dueDate || "9999").localeCompare(y.dueDate || "9999"));
+  return (
+    <div className="view-enter">
+      <div className="card card-pad" style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 14 }}>
+        <span className="bar" style={{ flex: 1 }}><span style={{ width: (done / tasks.length * 100) + "%", background: "var(--green)" }} /></span>
+        <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--fg-2)", whiteSpace: "nowrap" }}>{done}/{tasks.length} complete</span>
+      </div>
+      {sorted.map((t, i) => {
+        const c = OB_TASK_STATUS[t.status] || "var(--fg-3)";
+        const over = isOver(t);
+        return (
+          <div key={t.id || i} style={{ border: "1px solid var(--line)", borderRadius: 8, marginBottom: 8, padding: "10px 12px" }}>
+            <div style={{ display: "flex", gap: 7, alignItems: "center", flexWrap: "wrap" }}>
+              <span className="chip" style={{ background: "var(--soft)", color: c, borderColor: c }}>{t.status}</span>
+              {t.meetingType && t.meetingType.label && <span className="chip" style={{ background: "var(--soft)", color: "var(--fg-3)" }}>{t.meetingType.label}</span>}
+              {over && <span className="chip" style={{ background: "rgba(226,79,79,.14)", color: "var(--red)", borderColor: "rgba(226,79,79,.4)" }}>Overdue</span>}
+            </div>
+            <div style={{ fontSize: 13.5, fontWeight: 700, marginTop: 5 }}>{t.name}</div>
+            <div style={{ fontSize: 11.5, color: "var(--fg-3)", marginTop: 3 }}>
+              {t.dueDate ? "Due " + fmtDateY(t.dueDate) : "No due date"}{t.assignee && t.assignee.name ? " · " + t.assignee.name : ""}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
