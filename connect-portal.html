@@ -118,7 +118,6 @@ const bmkCode2 = `javascript:void((async function(){
     const accts=await(await fetch(F+'/api/portal-sync/accounts')).json();
     const sfIds=accts.ids||[];
     if(!sfIds.length){alert('No accounts found. Is the dashboard running?');return}
-    // Engagement scores: small batches, and record exactly what came back so a failure is visible.
     let eng=[];const engDebug=[];
     for(let i=0;i<sfIds.length;i+=5){
       const chunk=sfIds.slice(i,i+5);
