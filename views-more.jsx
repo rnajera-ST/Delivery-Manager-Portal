@@ -1382,7 +1382,6 @@ function ComplianceView({ accounts, onOpen, focus, senior }) {
   const [groupBy, setGroupBy] = React.useState(focus ? "issue" : "ic");
   const [focusIssue, setFocusIssue] = React.useState(focus || null);
   const [slackBusy, setSlackBusy] = React.useState(null); // IC name currently sending
-  const [csmBusy, setCsmBusy] = React.useState(false);    // CSM-manager message sending
   const [mgrFilter, setMgrFilter] = React.useState(null); // senior: filter to one manager's team
   const now = P.now;
   const inThisWeek = (d) => { if(!d) return false; const x=new Date(d); const mon=P.monday; const diff=Math.floor((x-mon)/86400000); return diff>=0 && diff<=4; };
@@ -1436,43 +1435,31 @@ function ComplianceView({ accounts, onOpen, focus, senior }) {
     );
   };
 
-  // Build the "Needs CSM 24h+" message and COPY it to the clipboard only.
-  // The recipient (whoever owns CSM assignment) varies per manager, so this does
-  // NOT auto-open Slack — paste it into a DM to your own CSM-assignment contact.
-  const messageCsmManager = () => {
-    if (csmBusy) return;
-    setCsmBusy(true);
-    fetch("/api/slack/csm-assignment-message", { method:"POST" }).then(r=>r.json()).then(d => {
-      setCsmBusy(false);
-      if (d.error) { showToast("Could not build message: " + d.error); return; }
-      const afterCopy = () => showToast("Message copied to clipboard! Paste it in a Slack DM to your CSM-assignment contact.");
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(d.message).then(afterCopy).catch(() => {
-          showToast("Couldn't copy automatically. Here's the message:\n\n" + d.message);
-        });
-      } else { afterCopy(); }
-    }).catch(() => { setCsmBusy(false); showToast("Slack request failed."); });
-  };
-
   // Per-account issue definitions — each yields a labeled chip
+  const impLive = a => a.status==="Implementation" || a.status==="Live";
+  const reviewHrs = a => a.transitionStatusUpdatedAt ? P.weekdayHoursBetween(a.transitionStatusUpdatedAt, P.now) : null;
   const defs = [
     { key:"noHS", label:"Missing health score", short:"No health score", color:"var(--red)", icon:"error",
-      test:a => a.hs==null && a.status!=="Pre-Implementation", detail:a => "No health score entered" },
+      test:a => impLive(a) && a.hs==null, detail:a => "No health score entered" },
     { key:"noComments", label:"Missing HS comments", short:"No HS comments", color:"var(--yellow)", icon:"comment",
-      test:a => a.hs!=null && !a.hsComment, detail:a => `Score ${a.hs}, no comments` },
+      test:a => impLive(a) && a.hs!=null && !a.hsComment, detail:a => `Score ${a.hs}, no comments` },
     { key:"staleHS", label:"Stale health score (>7d)", short:"Stale HS", color:"var(--yellow)", icon:"update",
-      test:a => a.hsLastUpdated && P.ageDays(a.hsLastUpdated)>window.HS_STALE_DAYS, detail:a => `Updated ${P.ageDays(a.hsLastUpdated)}d ago` },
+      test:a => impLive(a) && a.hsLastUpdated && P.ageDays(a.hsLastUpdated)>window.HS_STALE_DAYS, detail:a => `Updated ${P.ageDays(a.hsLastUpdated)}d ago` },
     { key:"pglOverdue", label:"Go-live date passed", short:"Go-live passed", color:"var(--red)", icon:"event_busy",
       test:a => a.pgl && new Date(a.pgl)<now && a.status!=="Live" && a.status!=="Hold", detail:a => `PGL ${fmtDate(a.pgl)} · ${P.ageDays(a.pgl)}d ago` },
-    { key:"transOverdue", label:"Transition overdue", short:"Transition overdue", color:"var(--red)", icon:"schedule",
-      test:a => a.antTransitionDate && new Date(a.antTransitionDate)<now && !a.transitioned && a.status!=="Hold", detail:a => `Ant. transition ${fmtDate(a.antTransitionDate)} · ${P.ageDays(a.antTransitionDate)}d ago` },
-    { key:"antBeforePgl", label:"Transition dated before go-live", short:"Transition < go-live", color:"#E8915B", icon:"swap_vert",
+    { key:"transOverdue", label:"Success transition overdue", short:"Success transition overdue", color:"var(--red)", icon:"schedule",
+      test:a => a.antTransitionDate && new Date(a.antTransitionDate)<now && !a.transitioned && a.status!=="Hold", detail:a => `Ant. Success transition ${fmtDate(a.antTransitionDate)} · ${P.ageDays(a.antTransitionDate)}d ago` },
+    { key:"antBeforePgl", label:"Success transition dated before go-live", short:"Success < go-live", color:"#E8915B", icon:"swap_vert",
       test:a => a.antTransitionDate && a.pgl && new Date(a.antTransitionDate)<new Date(a.pgl), detail:a => `Transition ${fmtDate(a.antTransitionDate)} is before go-live ${fmtDate(a.pgl)}` },
-    { key:"transWeekNotLive", label:"Transitioning this week but not live", short:"Transition, not live", color:"var(--red)", icon:"emergency",
-      test:a => a.antTransitionDate && inThisWeek(a.antTransitionDate) && a.status!=="Live" && a.status!=="Hold" && a.status!=="Success", detail:a => `Transition this week but status is ${a.status}` },
-    { key:"needsCsm", label:"Needs CSM 24h+ (no Success Rep)", short:"Needs CSM 24h+", color:"var(--red)", icon:"support_agent",
-      test:a => a.successTransitionStatus==="Needs CSM" && !a.successRep && a.transitionStatusUpdatedAt && hoursSince(a.transitionStatusUpdatedAt) > 24,
-      detail:a => `In Needs CSM ${fmtAge(hoursSince(a.transitionStatusUpdatedAt))}, no Success Rep assigned` },
+    { key:"transWeekNotLive", label:"Moving to Success this week but not live", short:"Success this week, not live", color:"var(--red)", icon:"emergency",
+      test:a => a.antTransitionDate && inThisWeek(a.antTransitionDate) && a.status!=="Live" && a.status!=="Hold" && a.status!=="Success", detail:a => `Success transition this week but status is ${a.status}` },
+    { key:"awaitingReview", label:"Waiting for CSM Manager review (24h SLA)", short:"Review > 24h", color:"var(--red)", icon:"rate_review",
+      test:a => a.successTransitionStatus==="Needs CSM Review" && reviewHrs(a)!=null && reviewHrs(a)>=24,
+      detail:a => `In Needs CSM Review for ${fmtAge(reviewHrs(a))} (business hours)` },
+    { key:"hypercareLong", label:"In hypercare over 2 weeks", short:"Hypercare > 2 wks", color:"var(--yellow)", icon:"timer",
+      test:a => a.status==="Live" && !a.transitioned && a.liveDate && P.ageDays(a.liveDate)>14, detail:a => `Live ${P.ageDays(a.liveDate)}d ago, not yet moved to Success` },
+    { key:"noHandoffDate", label:"Live with no Success transition date", short:"No Success date", color:"var(--yellow)", icon:"event_busy",
+      test:a => a.status==="Live" && !a.transitioned && !a.antTransitionDate, detail:a => "Live, no anticipated Success transition date set" },
   ];
 
   // accounts with ≥1 issue, each annotated with its issue list
@@ -1533,23 +1520,6 @@ function ComplianceView({ accounts, onOpen, focus, senior }) {
             <strong style={{ fontFamily:"var(--font-display)" }}>{n}</strong> {d.short} <MI style={{ fontSize:13 }}>arrow_forward</MI></button>)}
         </div>
       </div>
-
-      {/* CSM-assignment callout: accounts stuck in Needs CSM 24h+, routed to the CSM Manager */}
-      {(() => {
-        const csmStuck = flagged.filter(x => x.issues.some(i => i.key === "needsCsm"));
-        if (!csmStuck.length) return null;
-        return (
-          <div className="card card-pad" style={{ marginBottom: 20, display:"flex", alignItems:"center", gap:11, flexWrap:"wrap", background:"var(--tint-red-10)", borderColor:"var(--tint-red-25)" }}>
-            <MI style={{ fontSize:20, color:"var(--red)" }}>support_agent</MI>
-            <span style={{ fontWeight:700, fontSize:14 }}>{csmStuck.length} account{csmStuck.length!==1?"s":""} stuck in Needs CSM 24h+ with no Success Rep</span>
-            <span style={{ fontSize:12, color:"var(--fg-3)", fontWeight:600 }}>— copy the list and send it to your CSM-assignment contact</span>
-            <span className="spacer" />
-            <button className="btn btn-sm" disabled={csmBusy} onClick={messageCsmManager}
-              title="Copy the stuck-account list to paste into a Slack DM">
-              <MI style={{fontSize:15}}>{csmBusy?"sync":"content_copy"}</MI>{csmBusy?"Preparing…":"Copy CSM message"}</button>
-          </div>
-        );
-      })()}
 
       {/* grouping toggle */}
       <div className="toolbar">
@@ -1639,10 +1609,6 @@ function ComplianceView({ accounts, onOpen, focus, senior }) {
 // Calendar-based compliance: only renders when Google Calendar is connected.
 const CAL_FLAG_META = {
   kocMissing:           { label:"KOC not booked",                     color:"var(--red)",    icon:"event_busy" },
-  goLiveMissing:        { label:"Go-live check-in missing",           color:"var(--red)",    icon:"rocket_launch" },
-  transitionMissing:    { label:"Transition call missing",            color:"var(--red)",    icon:"swap_horiz" },
-  transitionNotPending: { label:"Transition booked, not Pending Handoff", color:"var(--yellow)", icon:"help" },
-  transitionDataIssue:  { label:"Transition <3d, not Pending Handoff", color:"var(--red)",    icon:"warning" },
 };
 
 function CalendarComplianceSection({ accounts, onOpen }) {

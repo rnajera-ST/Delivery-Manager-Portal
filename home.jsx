@@ -39,8 +39,10 @@ function Home({ accounts, onOpen, goTo, goToCompliance }) {
   const staleHS = compAccts.filter(a => a.hsLastUpdated && P.ageDays(a.hsLastUpdated) > window.HS_STALE_DAYS).length;
   const antBeforePgl = compAccts.filter(a => a.antTransitionDate && a.pgl && new Date(a.antTransitionDate) < new Date(a.pgl)).length;
   const transWeekNotLive = compAccts.filter(a => a.antTransitionDate && inThisWeek(a.antTransitionDate) && a.status !== "Live" && a.status !== "Hold" && a.status !== "Success").length;
-  const needsCsm = compAccts.filter(a => a.successTransitionStatus==="Needs CSM" && !a.successRep && a.transitionStatusUpdatedAt && (Date.now()-new Date(a.transitionStatusUpdatedAt))/3600000 > 24).length;
-  const complianceTotal = noHS+noComments+pglOver+transOver+staleHS+antBeforePgl+transWeekNotLive+needsCsm;
+  const awaitingReview = compAccts.filter(a => a.successTransitionStatus==="Needs CSM Review" && a.transitionStatusUpdatedAt && P.weekdayHoursBetween(a.transitionStatusUpdatedAt, now) >= 24).length;
+  const hypercareLong = compAccts.filter(a => a.status==="Live" && !a.transitioned && a.liveDate && P.ageDays(a.liveDate) > 14).length;
+  const noHandoffDate = compAccts.filter(a => a.status==="Live" && !a.transitioned && !a.antTransitionDate).length;
+  const complianceTotal = noHS+noComments+pglOver+transOver+staleHS+antBeforePgl+transWeekNotLive+awaitingReview+hypercareLong+noHandoffDate;
 
   const goLives = accounts.filter(a => inThisWeek(a.pgl) && a.status!=="Live" && a.status!=="Hold");
   const weekTransitions = accounts.filter(a => (inThisWeek(a.antTransitionDate) && a.transitioned===false) || inThisWeek(a.transitionDate));
@@ -116,7 +118,7 @@ function Home({ accounts, onOpen, goTo, goToCompliance }) {
           <MI style={{ fontSize:21, color:"var(--red)" }}>rule</MI>
           <span style={{ fontWeight:700, fontSize:13.5 }}>Salesforce compliance — {complianceTotal} item{complianceTotal!==1?"s":""} to chase before Monday sync</span>
           <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-            {[["noHS",noHS,"missing health score"],["noComments",noComments,"missing HS comments"],["pglOverdue",pglOver,"go-live date passed"],["transOverdue",transOver,"transition overdue"],["staleHS",staleHS,"stale health score (>7d)"],["antBeforePgl",antBeforePgl,"transition before go-live"],["transWeekNotLive",transWeekNotLive,"transition this week, not live"],["needsCsm",needsCsm,"needs CSM 24h+ (no Success Rep)"]].filter(([k,n])=>n>0).map(([k,n,l],i)=>
+            {[["noHS",noHS,"missing health score"],["noComments",noComments,"missing HS comments"],["pglOverdue",pglOver,"go-live date passed"],["transOverdue",transOver,"Success transition overdue"],["staleHS",staleHS,"stale health score (>7d)"],["antBeforePgl",antBeforePgl,"Success date before go-live"],["transWeekNotLive",transWeekNotLive,"Success this week, not live"],["awaitingReview",awaitingReview,"waiting on CSM Manager review 24h+"],["hypercareLong",hypercareLong,"hypercare over 2 weeks"],["noHandoffDate",noHandoffDate,"no Success transition date"]].filter(([k,n])=>n>0).map(([k,n,l],i)=>
               <button key={i} className="flag-pill flag-pill-btn" style={{ color:"var(--fg-2)" }} onClick={()=>goToCompliance(k)} title={`Review ${n} · ${l}`}><strong style={{ color:"var(--red)", fontFamily:"var(--font-display)" }}>{n}</strong> {l} <MI style={{ fontSize:13 }}>arrow_forward</MI></button>)}
           </div>
           <span className="spacer" />

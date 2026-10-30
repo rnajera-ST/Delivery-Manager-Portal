@@ -2816,15 +2816,16 @@ def _account_compliance_issues(row, today):
     friday = monday + timedelta(days=4)
 
     issues = []
-    if hs is None:
+    imp_live = status in ("Implementation", "Live")
+    if imp_live and hs is None:
         issues.append("missing health score")
-    if hs is not None and not comments:
+    if imp_live and hs is not None and not comments:
         issues.append("health score comments missing")
     if pgl and pgl < today and status != "Live":
         issues.append(f"PGL overdue, was {_fmt_short_date(pgl)}")
     if ant and ant < today and not transitioned:
         issues.append(f"transition overdue, was {_fmt_short_date(ant)}")
-    if hs_updated and (today - hs_updated).days > HS_STALE_DAYS:
+    if imp_live and hs_updated and (today - hs_updated).days > HS_STALE_DAYS:
         issues.append(f"health score not updated in {(today - hs_updated).days} days")
     if ant and pgl and ant < pgl:
         issues.append("transition date is before go-live")
@@ -3015,98 +3016,6 @@ def _fmt_duration_hours(hours):
     return f"{days} day{'s' if days != 1 else ''}"
 
 
-@app.route("/api/slack/csm-assignment-message", methods=["POST"])
-def api_slack_csm_assignment_message():
-    """Build a copy-only message listing accounts stuck in 'Needs CSM' for >24h
-    with no Success Rep assigned. The recipient (whoever owns CSM assignment)
-    varies per manager and is NOT hardcoded — this returns no deep link; the
-    manager pastes it into a DM to their own contact.
-    """
-    try:
-        ics = in_clause(get_ic_names())
-        rows = run_query(f"""
-            SELECT
-                o.ID_OB,
-                o.NAME_ACCOUNT,
-                o.ONBOARDER_NAME_ACCNT,
-                DATEDIFF('hour', o.LAST_SUCCESS_TRANSITION_STATUS_UPDATED_OB, CURRENT_TIMESTAMP()) AS HRS
-            FROM FACT_OB_IMPL_PS_IMPLEMENTATION o
-            LEFT JOIN VW_CUSTOMER_HEALTH_CURRENT h ON o.ACCOUNT_ID_OB = h.ACCOUNT_ID
-            WHERE o.ONBOARDER_NAME_ACCNT IN ({ics})
-              AND o.SUCCESS_TRANSITION_STATUS_OB = 'Needs CSM'
-              AND o.ONBOARDING_STATUS_OB IN ('Implementation', 'Live')
-              AND COALESCE(h.SUCCESS_REP_NAME, '') = ''
-              AND o.LAST_SUCCESS_TRANSITION_STATUS_UPDATED_OB < DATEADD('hour', -24, CURRENT_TIMESTAMP())
-            ORDER BY HRS DESC
-        """)
-
-        if not rows:
-            message = "No accounts are stuck in Needs CSM right now."
-        else:
-            lines = []
-            for r in rows:
-                name = r.get("NAME_ACCOUNT") or "Unknown account"
-                ic = r.get("ONBOARDER_NAME_ACCNT") or ""
-                age = _fmt_duration_hours(r.get("HRS"))
-                id_ob = r.get("ID_OB")
-                line = f"{name} - in Needs CSM {age}" + (f", {ic}'s account" if ic else "")
-                if id_ob:
-                    line += f" (https://servicetitan.lightning.force.com/lightning/r/Onboarding__c/{id_ob}/view)"
-                lines.append(line)
-            message = (
-                "Hi, these accounts have been in Needs CSM for over 24 hours with no Success Rep assigned. "
-                "Can a CSM be assigned?\n\n"
-                + "\n".join(lines)
-                + "\n\nThanks!"
-            )
-
-        # Copy-only: no recipient, no deep link (the contact varies per manager).
-        return jsonify({
-            "message": message,
-            "slackDeepLink": None,
-            "accountCount": len(rows),
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.after_request
-def add_cors_headers(response):
-    """Allow cross-origin requests from the portal domain (for bookmarklet sync)."""
-    origin = request.headers.get("Origin", "")
-    if "custom-wizards" in origin or "localhost" in origin or "127.0.0.1" in origin:
-        response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type"
-    return response
-
-# ── API: Refresh status ─────────────────────────────────────────────────────
-
-def pcache_synced_at():
-    """Return the portal cache's syncedAt timestamp, or None if unavailable."""
-    if PORTAL_CACHE_FILE.exists():
-        try:
-            cache = json.loads(PORTAL_CACHE_FILE.read_text())
-            return cache.get("syncedAt")
-        except Exception:
-            pass
-    return None
-
-
-def _reset_identity_caches():
-    """Clear the per-process identity/team/role metadata caches. Account data is
-    queried fresh on every /api/data call and is never cached; but team/role/email
-    detection is memoized for the process, so a roster or role change in Snowflake
-    wouldn't appear until restart. Clearing here lets the Refresh button pick it up."""
-    global _detection, _detected_role, _detected_senior_name, _senior_team_cache, _real_senior_cache, _ic_email_cache
-    _detection = None
-    _detected_role = None
-    _detected_senior_name = ""
-    _senior_team_cache = {}
-    _real_senior_cache = None
-    _ic_email_cache = None
-
-
 @app.route("/api/refresh", methods=["GET", "POST"])
 def api_refresh():
     """GET: confirm data sourcing. POST (from the Refresh button): also clear the
@@ -3242,9 +3151,10 @@ def api_manager_stats():
         pgl = _as_date(r.get("PGL"))
         ant = _as_date(r.get("ANT"))
         issues = 0
-        if hs is None and st != "Pre-Implementation": issues += 1
-        if hs is not None and not comments: issues += 1
-        if hs_upd and (today - hs_upd).days > HS_STALE_DAYS: issues += 1
+        il = st in ("Implementation", "Live")
+        if il and hs is None: issues += 1
+        if il and hs is not None and not comments: issues += 1
+        if il and hs_upd and (today - hs_upd).days > HS_STALE_DAYS: issues += 1
         if pgl and pgl < today and st not in ("Live", "Hold"): issues += 1
         if ant and ant < today and st != "Hold": issues += 1
         m["compliance"] += issues
@@ -3891,34 +3801,6 @@ def api_calendar_compliance():
                 if not hits:
                     flags.append({"type": "kocMissing", "severity": "red", "ic": ic, "accountId": aid,
                                   "account": name, "detail": f"Kickoff {kickoff.isoformat()} — no KOC found on calendar"})
-
-            # 2. Go-live check-in missing — Implementation, PGL within 7 days
-            if status == "Implementation" and pgl and 0 <= (pgl - today).days <= 7:
-                hits = near(_title_has(evs, "go live", "go-live", "golive"), pgl, 3) \
-                    or near([e for e in evs if _name_in_title(name, e["summary"])], pgl, 3)
-                if not hits:
-                    flags.append({"type": "goLiveMissing", "severity": "red", "ic": ic, "accountId": aid,
-                                  "account": name, "detail": f"Go-live {pgl.isoformat()} — no check-in booked"})
-
-            # 3 & 4. Transition logic for Live accounts
-            if status == "Live":
-                window = [e for e in evs if _event_dt(e)
-                          and today - timedelta(days=1) <= _event_dt(e).date() <= today + timedelta(days=3)]
-                # Only count as a transition call if the event both has a transition
-                # keyword AND mentions this specific account — avoids flagging all Live
-                # accounts when the IC has a transition call for a different account.
-                trans = [e for e in _title_has(window, "success", "welcome", "transition", "handoff")
-                         if _name_in_title(name, e.get("summary", ""))]
-                pending = (stt == "Pending Handoff Call")
-                if pending and not trans:
-                    flags.append({"type": "transitionMissing", "severity": "red", "ic": ic, "accountId": aid,
-                                  "account": name, "detail": "In Pending Handoff — no transition / Success call booked"})
-                elif not pending and trans:
-                    flags.append({"type": "transitionNotPending", "severity": "yellow", "ic": ic, "accountId": aid,
-                                  "account": name, "detail": f"Transition call booked but status is '{stt or 'n/a'}', not Pending Handoff"})
-                if ant and 0 <= (ant - today).days <= 3 and not pending:
-                    flags.append({"type": "transitionDataIssue", "severity": "red", "ic": ic, "accountId": aid,
-                                  "account": name, "detail": f"Transition {ant.isoformat()} within 3 days but not in Pending Handoff"})
 
     by_type, by_ic_out = {}, {}
     for f in flags:
@@ -4653,11 +4535,12 @@ def _agent_dashboard(account_id=None):
             pgl = _as_date(r.get("PROJECTED_GO_LIVE_DATE_OB"))
             ant = _as_date(r.get("ANTICIPATED_SUCCESS_TRANSITION_DATE_OB"))
             issues = []
-            if hs is None and status != "Pre-Implementation":
+            il = status in ("Implementation", "Live")
+            if il and hs is None:
                 issues.append("missing health score")
-            if hs is not None and not comments:
+            if il and hs is not None and not comments:
                 issues.append("no HS comments")
-            if hs_upd and (today - hs_upd).days > HS_STALE_DAYS:
+            if il and hs_upd and (today - hs_upd).days > HS_STALE_DAYS:
                 issues.append("stale health score")
             if pgl and pgl < today and status not in ("Live", "Hold"):
                 issues.append("go-live date passed")
