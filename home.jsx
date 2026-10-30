@@ -41,7 +41,7 @@ function Home({ accounts, onOpen, goTo, goToCompliance }) {
   const transWeekNotLive = compAccts.filter(a => a.antTransitionDate && inThisWeek(a.antTransitionDate) && a.status !== "Live" && a.status !== "Hold" && a.status !== "Success").length;
   const awaitingReview = compAccts.filter(a => a.successTransitionStatus==="Needs CSM Review" && a.transitionStatusUpdatedAt && P.weekdayHoursBetween(a.transitionStatusUpdatedAt, now) >= 24).length;
   const hypercareLong = compAccts.filter(a => a.status==="Live" && !a.transitioned && a.liveDate && P.ageDays(a.liveDate) > 14).length;
-  const noHandoffDate = compAccts.filter(a => a.status==="Live" && !a.transitioned && !a.antTransitionDate).length;
+  const noHandoffDate = compAccts.filter(a => !a.transitioned && !a.antTransitionDate).length;
   const complianceTotal = noHS+noComments+pglOver+transOver+staleHS+antBeforePgl+transWeekNotLive+awaitingReview+hypercareLong+noHandoffDate;
 
   const goLives = accounts.filter(a => inThisWeek(a.pgl) && a.status!=="Live" && a.status!=="Hold");

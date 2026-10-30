@@ -1458,8 +1458,8 @@ function ComplianceView({ accounts, onOpen, focus, senior }) {
       detail:a => `In Needs CSM Review for ${fmtAge(reviewHrs(a))} (business hours)` },
     { key:"hypercareLong", label:"In hypercare over 2 weeks", short:"Hypercare > 2 wks", color:"var(--yellow)", icon:"timer",
       test:a => a.status==="Live" && !a.transitioned && a.liveDate && P.ageDays(a.liveDate)>14, detail:a => `Live ${P.ageDays(a.liveDate)}d ago, not yet moved to Success` },
-    { key:"noHandoffDate", label:"Live with no Success transition date", short:"No Success date", color:"var(--yellow)", icon:"event_busy",
-      test:a => a.status==="Live" && !a.transitioned && !a.antTransitionDate, detail:a => "Live, no anticipated Success transition date set" },
+    { key:"noHandoffDate", label:"No anticipated Success transition date", short:"No Success date", color:"var(--yellow)", icon:"event_busy",
+      test:a => impLive(a) && !a.transitioned && !a.antTransitionDate, detail:a => `${a.status}, no anticipated Success transition date set` },
   ];
 
   // accounts with ≥1 issue, each annotated with its issue list
