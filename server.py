@@ -683,8 +683,21 @@ def _get_eng_breakdown(pcache, account_id):
     if not pcache:
         return None
     eng = pcache.get("engagement", {})
+    entry = None
     if isinstance(eng, dict) and account_id in eng:
         entry = eng[account_id]
+    elif isinstance(eng, list):
+        # bulk endpoint may return a list of {salesforceId, breakdown, ...}
+        for it in eng:
+            if isinstance(it, dict) and account_id in (it.get("salesforceId"), it.get("tenantSalesforceId"), it.get("id")):
+                entry = it
+                break
+    if entry is None:
+        # fall back to the engagement block inside this account's own detail record
+        de = ((pcache.get("details") or {}).get(account_id) or {}).get("engagement")
+        if isinstance(de, dict) and de.get("breakdown"):
+            entry = de
+    if entry is not None:
         breakdown = entry.get("breakdown", [])
         result = {}
         name_map = {
@@ -3193,6 +3206,12 @@ def api_debug_portal_cache():
         k = next(iter(eng)); sample = k + ": " + json.dumps(eng[k], default=str)[:600]
     det = c.get("details") or {}
     dk = next(iter(det), None)
+    qid = request.args.get("id")
+    if qid:
+        e = ((c.get("details") or {}).get(qid) or {}).get("engagement")
+        return jsonify({"id": qid, "engagementType": type(e).__name__,
+                        "engagementKeys": list(e.keys()) if isinstance(e, dict) else None,
+                        "engagementJson": json.dumps(e, default=str)[:1500]})
     return jsonify({"hasCache": True, "syncedAt": c.get("syncedAt"), "topKeys": list(c.keys()),
                     "engagement": shape(eng), "engagementSample": sample,
                     "detailsCount": len(det), "sampleDetailTopKeys": list((det.get(dk) or {}).keys())[:25] if dk else None,
