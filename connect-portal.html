@@ -118,10 +118,23 @@ const bmkCode2 = `javascript:void((async function(){
     const accts=await(await fetch(F+'/api/portal-sync/accounts')).json();
     const sfIds=accts.ids||[];
     if(!sfIds.length){alert('No accounts found. Is the dashboard running?');return}
-    document.title='⚡ Fetching engagement ('+sfIds.length+' accounts)...';
-    const engUrl=B+'/admin/api/v1/onboarding-portal/engagement-score/tenants?'+sfIds.map(id=>'salesforceIds='+id).join('&');
-    let eng=[];
-    try{eng=await(await fetch(engUrl,{headers:{'x-requested-with':'XMLHttpRequest'},credentials:'include'})).json()}catch(e){console.warn('Engagement fetch failed',e)}
+    // Engagement scores: small batches, and record exactly what came back so a failure is visible.
+    let eng=[];const engDebug=[];
+    for(let i=0;i<sfIds.length;i+=5){
+      const chunk=sfIds.slice(i,i+5);
+      document.title='⚡ Engagement '+Math.min(i+5,sfIds.length)+'/'+sfIds.length+'...';
+      const u=B+'/admin/api/v1/onboarding-portal/engagement-score/tenants?'+chunk.map(id=>'salesforceIds='+id).join('&');
+      try{
+        const r=await fetch(u,{headers:{'x-requested-with':'XMLHttpRequest'},credentials:'include'});
+        const txt=await r.text();
+        engDebug.push({status:r.status,ok:r.ok,bytes:txt.length,sample:txt.slice(0,160)});
+        if(r.ok){
+          let j;try{j=JSON.parse(txt)}catch(e){j=null}
+          if(Array.isArray(j))eng=eng.concat(j);
+          else if(j&&typeof j==='object'){eng=eng.length?eng:[];eng.push(j)}
+        }
+      }catch(e){engDebug.push({error:String(e)})}
+    }
     document.title='⚡ Fetching my pipeline...';
     let me=[];
     try{me=await(await fetch(B+'/admin/api/v1/onboarding-portal/me',{headers:{'x-requested-with':'XMLHttpRequest'},credentials:'include'})).json()}catch(e){}
@@ -140,11 +153,11 @@ const bmkCode2 = `javascript:void((async function(){
     const resp=await fetch(F+'/api/portal-sync/receive',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({me:me,engagement:eng,details:details,ids:sfIds,syncedAt:new Date().toISOString()})
+      body:JSON.stringify({me:me,engagement:eng,engagementDebug:engDebug,details:details,ids:sfIds,syncedAt:new Date().toISOString()})
     });
     const result=await resp.json();
     document.title='✅ Synced '+Object.keys(details).length+' accounts!';
-    alert('Synced '+Object.keys(details).length+' accounts to Manager Dashboard! Go back and refresh.');
+    alert('Synced '+Object.keys(details).length+' accounts. Engagement items: '+eng.length+'. Go back and refresh.');
   }catch(e){
     document.title='❌ Sync failed';
     alert('Sync failed: '+e.message+'\\n\\nMake sure the dashboard (localhost:5001) is running.');

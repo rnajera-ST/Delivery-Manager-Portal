@@ -689,8 +689,18 @@ def _get_eng_breakdown(pcache, account_id):
     elif isinstance(eng, list):
         # bulk endpoint may return a list of {salesforceId, breakdown, ...}
         for it in eng:
-            if isinstance(it, dict) and account_id in (it.get("salesforceId"), it.get("tenantSalesforceId"), it.get("id")):
+            if not isinstance(it, dict):
+                continue
+            vals = [v for v in it.values() if isinstance(v, str)]
+            for v in it.values():
+                if isinstance(v, dict):
+                    vals += [x for x in v.values() if isinstance(x, str)]
+            if account_id in vals:
                 entry = it
+                break
+            # a chunk may itself be a dict keyed by Salesforce ID
+            if account_id in it and isinstance(it[account_id], dict):
+                entry = it[account_id]
                 break
     if entry is None:
         # fall back to the engagement block inside this account's own detail record
@@ -3206,6 +3216,8 @@ def api_debug_portal_cache():
         k = next(iter(eng)); sample = k + ": " + json.dumps(eng[k], default=str)[:600]
     det = c.get("details") or {}
     dk = next(iter(det), None)
+    if request.args.get("eng") == "1":
+        return jsonify({"engagementDebug": c.get("engagementDebug"), "engagement": shape(eng), "engagementSample": sample})
     qid = request.args.get("id")
     if qid:
         e = ((c.get("details") or {}).get(qid) or {}).get("engagement")
