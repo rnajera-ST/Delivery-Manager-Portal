@@ -148,11 +148,23 @@ const bmkCode2 = `javascript:void((async function(){
       done++;
       if(done%5===0)document.title='⚡ Details '+done+'/'+sfIds.length+'...';
     }
+    document.title='⚡ Probing tasks endpoints...';
+    const probe=[];
+    const pid=sfIds[0];
+    const P0=B+'/admin/api/v1/onboarding-portal/';
+    const cands=['tenants/'+pid+'/tasks','tenants/'+pid+'/tasks/','tasks?salesforceId='+pid,'tasks/tenants/'+pid,'tenants/'+pid+'/task-list','tenants/'+pid+'/onboarding-tasks','tenants/'+pid+'/checklist','tasks/'+pid];
+    for(const c of cands){
+      try{
+        const r=await fetch(P0+c,{headers:{'x-requested-with':'XMLHttpRequest'},credentials:'include'});
+        const t=await r.text();
+        probe.push({path:c,status:r.status,bytes:t.length,sample:t.slice(0,300)});
+      }catch(e){probe.push({path:c,error:String(e)})}
+    }
     document.title='⚡ Sending to dashboard...';
     const resp=await fetch(F+'/api/portal-sync/receive',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({me:me,engagement:eng,engagementDebug:engDebug,details:details,ids:sfIds,syncedAt:new Date().toISOString()})
+      body:JSON.stringify({me:me,engagement:eng,engagementDebug:engDebug,probe:probe,details:details,ids:sfIds,syncedAt:new Date().toISOString()})
     });
     const result=await resp.json();
     document.title='✅ Synced '+Object.keys(details).length+' accounts!';

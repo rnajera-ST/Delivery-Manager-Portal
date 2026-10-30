@@ -3216,6 +3216,8 @@ def api_debug_portal_cache():
         k = next(iter(eng)); sample = k + ": " + json.dumps(eng[k], default=str)[:600]
     det = c.get("details") or {}
     dk = next(iter(det), None)
+    if request.args.get("probe") == "1":
+        return jsonify({"probe": c.get("probe")})
     if request.args.get("eng") == "1":
         return jsonify({"engagementDebug": c.get("engagementDebug"), "engagement": shape(eng), "engagementSample": sample})
     qid = request.args.get("id")
