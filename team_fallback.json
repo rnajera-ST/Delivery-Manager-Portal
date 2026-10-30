@@ -1,0 +1,9 @@
+{
+  "_note": "Used only when Snowflake name/email columns are masked and the team cannot be auto-detected. Maps each IC's Salesforce user ID (ONBOARDER_ID_ACCNT, never masked) to their name. Edit this list to match your team.",
+  "team": [
+    {"name": "Davon Knight",       "sfId": "0051P0000047TPPQA2"},
+    {"name": "Alexandra Battaile", "sfId": "005Pg000006zZ2XIAU"},
+    {"name": "Parris Miller",      "sfId": "005Pg00000DYSLlIAP"},
+    {"name": "Allison Gardner",    "sfId": "005Pg000007vWlVIAU"}
+  ]
+}

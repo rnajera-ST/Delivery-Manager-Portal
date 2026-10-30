@@ -213,6 +213,19 @@ def _detect_identity():
                                 "color": IC_COLORS[i % len(IC_COLORS)]})
     except Exception as e:
         print(f"Identity detection error: {e}", file=sys.stderr)
+    out["usedFallback"] = False
+    if not out["team"]:
+        fb = load_fallback_team()
+        if fb:
+            for i, m in enumerate(fb):
+                nm = m["name"]; parts = nm.split(" ")
+                _ID_NAME_MAP[m["sfId"]] = nm
+                out["team"].append({"name": nm, "short": parts[0] + (" " + parts[-1][:1] + "." if len(parts) > 1 else ""),
+                                    "initials": (parts[0][:1] + (parts[-1][:1] if len(parts) > 1 else "")).upper(),
+                                    "level": "IC2", "status": "Active", "color": IC_COLORS[i % len(IC_COLORS)],
+                                    "sfId": m["sfId"]})
+            out["usedFallback"] = True
+            print("Team auto-detection found nothing (masked?). Using team_fallback.json IDs.", file=sys.stderr)
     _detection = out
     return out
 
@@ -490,8 +503,38 @@ def get_snowflake_conn():
     return _sf_conn
 
 
+# ── Masked-name fallback ─────────────────────────────────────────────────────
+# When Snowflake masks person-name columns, queries that filter on
+# ONBOARDER_NAME_ACCNT match nothing. If a fallback team (Salesforce user IDs,
+# which are never masked) is active, every read of the implementation view goes
+# through a subquery that rebuilds ONBOARDER_NAME_ACCNT from ONBOARDER_ID_ACCNT.
+_ID_NAME_MAP = {}
+_IMPL_VIEW_RE = re.compile(r"\b(FROM|JOIN)(\s+)FACT_OB_IMPL_PS_IMPLEMENTATION\b", re.I)
+
+
+def load_fallback_team():
+    p = Path(__file__).parent / "team_fallback.json"
+    try:
+        return json.loads(p.read_text()).get("team", []) if p.exists() else []
+    except Exception as e:
+        print(f"team_fallback.json error: {e}", file=sys.stderr)
+        return []
+
+
+def _rewrite_impl_view(sql):
+    if not _ID_NAME_MAP or "FACT_OB_IMPL_PS_IMPLEMENTATION" not in sql:
+        return sql
+    whens = " ".join(
+        "WHEN '%s' THEN '%s'" % (i.replace("'", ""), n.replace("'", "''"))
+        for i, n in _ID_NAME_MAP.items())
+    sub = ("(SELECT * EXCLUDE (ONBOARDER_NAME_ACCNT), CASE ONBOARDER_ID_ACCNT " + whens +
+           " ELSE ONBOARDER_NAME_ACCNT END AS ONBOARDER_NAME_ACCNT FROM FACT_OB_IMPL_PS_IMPLEMENTATION)")
+    return _IMPL_VIEW_RE.sub(lambda m: m.group(1) + m.group(2) + sub, sql)
+
+
 def run_query(sql, params=None):
     """Execute a Snowflake query and return list of dicts."""
+    sql = _rewrite_impl_view(sql)
     conn = get_snowflake_conn()
     try:
         cur = conn.cursor()
@@ -1655,6 +1698,9 @@ def api_debug_identity():
     that email exactly, and near-matches by email prefix and by manager name."""
     out = {}
     email = get_snowflake_user()
+    _det = _detect_identity()
+    out["fallbackTeamActive"] = bool(_det.get("usedFallback"))
+    out["teamInUse"] = [t["name"] for t in _det.get("team", [])]
     out["emailInUse"] = repr(email)  # repr() makes stray spaces or newlines visible
     try:
         out["snowflakeRole"] = run_query("SELECT CURRENT_ROLE() AS R")[0].get("R")
