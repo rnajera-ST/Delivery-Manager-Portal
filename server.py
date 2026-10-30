@@ -3071,6 +3071,43 @@ def _fmt_duration_hours(hours):
     return f"{days} day{'s' if days != 1 else ''}"
 
 
+@app.after_request
+def add_cors_headers(response):
+    """Allow cross-origin requests from the portal domain (for bookmarklet sync)."""
+    origin = request.headers.get("Origin", "")
+    if "custom-wizards" in origin or "localhost" in origin or "127.0.0.1" in origin:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    return response
+
+# ── API: Refresh status ─────────────────────────────────────────────────────
+
+def pcache_synced_at():
+    """Return the portal cache's syncedAt timestamp, or None if unavailable."""
+    if PORTAL_CACHE_FILE.exists():
+        try:
+            cache = json.loads(PORTAL_CACHE_FILE.read_text())
+            return cache.get("syncedAt")
+        except Exception:
+            pass
+    return None
+
+
+def _reset_identity_caches():
+    """Clear the per-process identity/team/role metadata caches. Account data is
+    queried fresh on every /api/data call and is never cached; but team/role/email
+    detection is memoized for the process, so a roster or role change in Snowflake
+    wouldn't appear until restart. Clearing here lets the Refresh button pick it up."""
+    global _detection, _detected_role, _detected_senior_name, _senior_team_cache, _real_senior_cache, _ic_email_cache
+    _detection = None
+    _detected_role = None
+    _detected_senior_name = ""
+    _senior_team_cache = {}
+    _real_senior_cache = None
+    _ic_email_cache = None
+
+
 @app.route("/api/refresh", methods=["GET", "POST"])
 def api_refresh():
     """GET: confirm data sourcing. POST (from the Refresh button): also clear the
