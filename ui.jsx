@@ -211,8 +211,23 @@ function MultiSelect({ label, options, selected, onChange }) {
 
 /* health-score helpers used across views */
 const isEsc = (a) => a.hs != null && a.hs <= 3;
-const isFlagged = (a) => isEsc(a) || a.hs == null || a.status === "Hold" ||
-  (a.pgl && new Date(a.pgl) < P.now && !["Live"].includes(a.status));
+const impLive = (a) => a.status === "Implementation" || a.status === "Live";
+const reviewHrs = (a) => a.transitionStatusUpdatedAt ? P.weekdayHoursBetween(a.transitionStatusUpdatedAt, P.now) : null;
+const inThisWeek = (d) => { if(!d) return false; const x=new Date(d); const diff=Math.floor((x-P.monday)/86400000); return diff>=0 && diff<=4; };
+// Single source of truth for compliance rules; used by Compliance and by the Accounts "Flagged" filter.
+const COMPLIANCE_TESTS = {
+  noHS: a => impLive(a) && a.hs==null,
+  noComments: a => impLive(a) && a.hs!=null && !a.hsComment,
+  staleHS: a => impLive(a) && a.hsLastUpdated && P.ageDays(a.hsLastUpdated)>window.HS_STALE_DAYS,
+  pglOverdue: a => a.pgl && new Date(a.pgl)<P.now && a.status!=="Live" && a.status!=="Hold",
+  transOverdue: a => a.antTransitionDate && new Date(a.antTransitionDate)<P.now && !a.transitioned && a.status!=="Hold",
+  antBeforePgl: a => a.antTransitionDate && a.pgl && new Date(a.antTransitionDate)<new Date(a.pgl),
+  transWeekNotLive: a => a.antTransitionDate && inThisWeek(a.antTransitionDate) && a.status!=="Live" && a.status!=="Hold" && a.status!=="Success",
+  awaitingReview: a => a.successTransitionStatus==="Needs CSM Review" && reviewHrs(a)!=null && reviewHrs(a)>=24,
+  hypercareLong: a => a.status==="Live" && !a.transitioned && a.liveDate && P.ageDays(a.liveDate)>14,
+  noHandoffDate: a => impLive(a) && !a.transitioned && !a.antTransitionDate,
+};
+const isFlagged = (a) => impLive(a) && Object.values(COMPLIANCE_TESTS).some(t => t(a));
 const pglOverdue = (a) => a.pgl && new Date(a.pgl) < P.now && a.status !== "Live" && a.status !== "Hold";
 
 /* ── toast ── */
@@ -236,5 +251,5 @@ Object.assign(window, {
   fmtMoney, fmtK, fmtDate, fmtDateY, weeksIn, relDay, firstName, icOf,
   MI, Avatar, HsChip, StatusChip, SentDot, AgePill, Stars, KPI, Card, Bar, Empty,
   PortalStatusChip, EngScore, SpecDots, MultiSelect, BalanceBadge,
-  isEsc, isFlagged, pglOverdue, showToast,
+  isEsc, isFlagged, pglOverdue, COMPLIANCE_TESTS, reviewHrs, impLive, showToast,
 });

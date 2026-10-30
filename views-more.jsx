@@ -8,133 +8,102 @@ const HS_SCORE_LABELS = {
 };
 
 /* ============================ PORTFOLIO ============================ */
-function Portfolio({ accounts, onOpen, mode, senior }) {
+function Portfolio({ accounts, onOpen, senior }) {
   const [q, setQ] = useStateM("");
   const icOpts = P.team.map(t=>t.name);
   const mgrOpts = senior ? Array.from(new Set(accounts.map(a=>a.manager).filter(Boolean))).sort() : [];
-  const statusOpts = Object.keys(P.STATUS);
-  const pstatusOpts = Object.keys(P.PORTAL_STATUS);
   const [ic, setIc] = useStateM(icOpts);
   const [mgr, setMgr] = useStateM(mgrOpts);
-  const [status, setStatus] = useStateM(statusOpts);
-  const [pstatus, setPstatus] = useStateM(pstatusOpts);
-  const [view, setView] = useStateM("all");
+  const [stage, setStage] = useStateM("all");
+  const [flaggedOnly, setFlaggedOnly] = useStateM(false);
   const [sort, setSort] = useStateM("hs");
   const [dir, setDir] = useStateM(1);
 
+  const STAGES = [["all","All",null],["pre","Pre-Imp","Pre-Implementation"],["imp","Imp","Implementation"],["live","Live","Live"]];
+  const stageCount = (st) => st ? accounts.filter(a=>a.status===st).length : accounts.length;
+
   let rows = accounts.slice();
-  if (view === "esc") rows = rows.filter(isEsc);
-  else if (view === "flagged") rows = rows.filter(isFlagged);
+  const stDef = STAGES.find(x=>x[0]===stage);
+  if (stDef && stDef[2]) rows = rows.filter(a => a.status === stDef[2]);
+  if (flaggedOnly) rows = rows.filter(isFlagged);
   // All options selected = no filter (everything shown, incl. blanks). A subset
   // filters; deselecting all shows none.
   if (senior && mgr.length < mgrOpts.length) rows = rows.filter(a => mgr.includes(a.manager));
   if (ic.length < icOpts.length) rows = rows.filter(a => ic.includes(a.ic));
-  if (status.length < statusOpts.length) rows = rows.filter(a => status.includes(a.status));
-  if (pstatus.length < pstatusOpts.length) rows = rows.filter(a => pstatus.includes(a.portalStatus));
   if (q.trim()) { const s = q.toLowerCase(); rows = rows.filter(a => a.tenant.toLowerCase().includes(s) || a.ic.toLowerCase().includes(s) || a.trade.toLowerCase().includes(s)); }
 
+  const hsAgeOf = a => a.hsLastUpdated ? P.ageDays(a.hsLastUpdated) : null;
+  const daysLive = a => (a.status==="Live" && a.liveDate) ? P.ageDays(a.liveDate) : null;
+  const dateKey = d => d ? new Date(d).getTime() : Infinity;
   const keyFns = {
     hs: a => a.hs ?? 99, tenant: a => a.tenant.toLowerCase(), ic: a => a.ic, status: a => a.status,
-    cmrr: a => a.cmrr, week: a => P.ageDays(a.implStart)||0, pgl: a => a.pgl?new Date(a.pgl).getTime():Infinity,
-    trans: a => a.antTransitionDate?new Date(a.antTransitionDate).getTime():Infinity,
-    eng: a => a.engagementScore ?? -1,
-    koc: a => a.kocDate?new Date(a.kocDate).getTime():Infinity,
-    ipgl: a => a.initialPgl?new Date(a.initialPgl).getTime():Infinity,
+    cmrr: a => a.cmrr, week: a => P.ageDays(a.implStart)||0, pgl: a => dateKey(a.pgl),
+    live: a => dateKey(a.liveDate), trans: a => dateKey(a.antTransitionDate),
+    koc: a => dateKey(a.kocDate),
+    hsupd: a => { const n = hsAgeOf(a); return n == null ? Infinity : n; },
+    dlive: a => { const n = daysLive(a); return n == null ? -1 : n; },
   };
   rows.sort((a,b) => { const ka=keyFns[sort](a), kb=keyFns[sort](b); return (ka<kb?-1:ka>kb?1:0)*dir; });
 
-  const setSortCol = (c) => { if (sort===c) setDir(d=>-d); else { setSort(c); setDir(c==="cmrr"?-1:1); } };
+  const setSortCol = (c) => { if (sort===c) setDir(d=>-d); else { setSort(c); setDir(c==="cmrr"||c==="hsupd"||c==="dlive"?-1:1); } };
   const Th = ({ c, children, right }) => <th onClick={()=>setSortCol(c)} style={{ textAlign: right?"right":"left" }}>{children}{sort===c && <MI className="sort-ind">{dir>0?"arrow_drop_up":"arrow_drop_down"}</MI>}</th>;
 
   return (
     <div className="view-enter">
       <div className="toolbar">
         <div className="seg">
-          {[["all","All"],["flagged","Flagged"],["esc","Escalations"]].map(([k,lb])=><button key={k} className={view===k?"on":""} onClick={()=>setView(k)}>{lb}</button>)}
+          {STAGES.map(([k,lb,st])=><button key={k} className={stage===k?"on":""} onClick={()=>setStage(k)}>{lb} ({stageCount(st)})</button>)}
         </div>
+        <button className={"btn btn-sm " + (flaggedOnly ? "" : "btn-ghost")} onClick={()=>setFlaggedOnly(f=>!f)} title="Accounts with any Compliance issue (Implementation and Live)">
+          <MI>flag</MI>Flagged only
+        </button>
         <div className="search"><MI>search</MI><input className="inp" placeholder="Search accounts, ICs, trades…" value={q} onChange={e=>setQ(e.target.value)} /></div>
         {senior && <MultiSelect label="managers" options={mgrOpts} selected={mgr} onChange={setMgr} />}
         <MultiSelect label="ICs" options={P.team.map(t=>t.name)} selected={ic} onChange={setIc} />
-        <MultiSelect label="statuses" options={Object.keys(P.STATUS)} selected={status} onChange={setStatus} />
-        <MultiSelect label="portal status" options={Object.keys(P.PORTAL_STATUS)} selected={pstatus} onChange={setPstatus} />
         <span className="spacer" />
         <span className="count-note">{rows.length} of {accounts.length}</span>
       </div>
 
-      {mode==="cards" ? (
-        <div className="acct-cards">
-          {rows.map(a => <AccountCard key={a.id} a={a} onOpen={onOpen} />)}
-          {rows.length===0 && <Empty icon="search_off" title="No matches" sub="Try a different search or filter." />}
-        </div>
-      ) : (
       <div className="tbl-wrap">
         <table className="tbl tbl-compact">
           <thead><tr>
-            <Th c="hs">Health</Th><Th c="tenant">Account</Th>{senior && <th>Manager</th>}<Th c="ic">IC</Th><Th c="status">Status</Th>
-            <Th c="hs">Health Score</Th><Th c="cmrr" right>CMRR</Th><Th c="koc">KOC Date</Th><Th c="week" right>In OB</Th><Th c="ipgl">Initial PGL</Th><Th c="pgl">Go-Live</Th><Th c="trans">Transition</Th>
+            <Th c="tenant">Account</Th>{senior && <th>Manager</th>}<Th c="ic">IC</Th><Th c="status">Status</Th>
+            <Th c="hs">Health Score</Th><Th c="hsupd">Health Updated</Th><Th c="cmrr" right>CMRR</Th><Th c="koc">KOC Date</Th>
+            <Th c="week" right>Week</Th><Th c="pgl">PGL</Th><Th c="live">Go-Live</Th><Th c="dlive" right>Days Live</Th><Th c="trans">Success Date</Th>
           </tr></thead>
           <tbody>
             {rows.map(a => {
               const wk = weeksIn(a.implStart);
-              const ps = a.portalStatus ? (P.PORTAL_STATUS[a.portalStatus]||{c:"var(--fg-3)",i:"help"}) : null;
+              const wkColor = wk==null ? "var(--fg-2)" : wk>8 ? "var(--red)" : (wk>6 && a.status!=="Live") ? "#E8915B" : "var(--fg-2)";
+              const hsAge = hsAgeOf(a);
+              const hsAlert = impLive(a) && (hsAge==null || hsAge>window.HS_STALE_DAYS);
+              const dl = daysLive(a);
               return <tr key={a.id} onClick={()=>onOpen(a)}>
-                <td><HsChip hs={a.hs} mini /></td>
                 <td><div style={{ display:"flex", alignItems:"center", gap:6 }}><span className="acct-name">{a.tenant}</span><BalanceBadge amount={a.outstandingBalance} sm /></div><div style={{ fontSize:11, color:"var(--fg-4)", fontWeight:600 }}>{a.trade}</div></td>
                 {senior && <td style={{ fontSize:12.5, color:"var(--fg-2)", fontWeight:600 }}>{a.manager || "—"}</td>}
                 <td><span style={{ display:"flex", alignItems:"center", gap:7 }}><Avatar name={a.ic} size={20} /><span style={{ fontSize:12.5, color:"var(--fg-2)", fontWeight:600 }}>{firstName(a.ic)}{a.ic.split(" ")[1] ? " " + a.ic.split(" ")[1][0] + "." : ""}</span></span></td>
-                <td><span style={{ display:"inline-flex", alignItems:"center", gap:6 }}><StatusChip status={a.status} />{ps && <span title={a.portalStatus} style={{ display:"inline-flex" }}><MI style={{ fontSize:15, color:ps.c }}>{ps.i}</MI></span>}</span></td>
+                <td><StatusChip status={a.status} /></td>
                 <td>{a.hs!=null && P.HS[a.hs]
                   ? <span className="chip" style={{ background:P.HS[a.hs].bg, borderColor:P.HS[a.hs].bd, color:P.HS[a.hs].c, whiteSpace:"nowrap" }}>{a.hs}{" \u00b7 "}{HS_SCORE_LABELS[a.hs]}</span>
                   : <span className="muted">\u2014</span>}</td>
+                <td style={{ fontWeight:700, color: hsAlert?"var(--red)":"var(--fg-2)", whiteSpace:"nowrap" }}>
+                  {hsAge!=null ? (hsAge===0 ? "Today" : hsAge+"d ago") : (impLive(a) ? "Never" : "\u2014")}{hsAlert && <MI style={{fontSize:14, verticalAlign:"-2px", marginLeft:3}}>warning</MI>}</td>
                 <td style={{ textAlign:"right" }} className="num">{fmtMoney(a.cmrr)}</td>
                 <td>{a.kocDate ? <span style={{ fontWeight:600, color:"var(--fg-2)" }}>{fmtDate(a.kocDate)}</span> : <span className="muted">\u2014</span>}</td>
-                <td style={{ textAlign:"right", fontWeight:700, color: wk>35?"var(--red)":wk>21?"#E8915B":"var(--fg-2)" }}>{wk!=null?wk+"w":"\u2014"}</td>
-                <td>{a.initialPgl ? (() => { const slip = a.pgl ? P.daysBetween(a.initialPgl, a.pgl) : 0; return <span style={{ fontWeight:600, color:"var(--fg-2)" }}>{fmtDate(a.initialPgl)}{slip>0 && <span title={slip+" days slipped from initial"} style={{ color: slip>14?"var(--red)":"var(--yellow)", fontWeight:700, marginLeft:4 }}>+{slip}d</span>}</span>; })() : <span className="muted">\u2014</span>}</td>
+                <td style={{ textAlign:"right", fontWeight:700, color: wkColor }}>{wk!=null?wk+"w":"\u2014"}</td>
+                <td><span style={{ fontWeight:600, color: pglOverdue(a)?"var(--red)":a.pgl?"var(--sky)":"var(--fg-4)" }}>{a.pgl ? fmtDate(a.pgl) : "\u2014"}{pglOverdue(a)&&<MI style={{fontSize:14, verticalAlign:"-2px", marginLeft:3}}>warning</MI>}</span></td>
                 <td>{a.status==="Live" && a.liveDate
                   ? <span style={{ fontWeight:700, color:"var(--green)", display:"inline-flex", alignItems:"center", gap:4 }}><MI style={{fontSize:14}}>check_circle</MI>{fmtDate(a.liveDate)}</span>
-                  : <span style={{ fontWeight:600, color: pglOverdue(a)?"var(--red)":a.pgl?"var(--sky)":"var(--fg-4)" }}>{fmtDate(a.pgl)}{pglOverdue(a)&&<MI style={{fontSize:14, verticalAlign:"-2px", marginLeft:3}}>warning</MI>}</span>}</td>
+                  : <span className="muted">\u2014</span>}</td>
+                <td style={{ textAlign:"right", fontWeight:700, color: dl!=null && dl>14 ? "#E8915B" : "var(--fg-2)" }}>{dl!=null ? dl+"d" : "\u2014"}</td>
                 <td>{a.antTransitionDate
-                  ? (() => { const overdue = new Date(a.antTransitionDate) < P.now && a.status!=="Hold"; return <span style={{ fontWeight:600, color: overdue?"var(--red)":"var(--sky)" }}>{fmtDate(a.antTransitionDate)}{overdue&&<MI style={{fontSize:14, verticalAlign:"-2px", marginLeft:3}}>warning</MI>}</span>; })()
-                  : <span className="muted">—</span>}</td>
+                  ? (() => { const overdue = new Date(a.antTransitionDate) < P.now && !a.transitioned && a.status!=="Hold"; return <span style={{ fontWeight:600, color: overdue?"var(--red)":"var(--sky)" }}>{fmtDate(a.antTransitionDate)}{overdue&&<MI style={{fontSize:14, verticalAlign:"-2px", marginLeft:3}}>warning</MI>}</span>; })()
+                  : (impLive(a) ? <span style={{ fontWeight:700, color:"var(--red)" }}>Not set <MI style={{fontSize:14, verticalAlign:"-2px"}}>warning</MI></span> : <span className="muted">\u2014</span>)}</td>
               </tr>;
             })}
           </tbody>
         </table>
         {rows.length===0 && <Empty icon="search_off" title="No matches" sub="Try a different search or filter." />}
-      </div>
-      )}
-    </div>
-  );
-}
-
-function AccountCard({ a, onOpen }) {
-  const ps = a.portalStatus ? (P.PORTAL_STATUS[a.portalStatus]||{c:"var(--fg-3)",i:"help"}) : null;
-  const wk = weeksIn(a.implStart);
-  const transOverdue = a.antTransitionDate && new Date(a.antTransitionDate) < P.now && a.status!=="Hold";
-  return (
-    <div className="acct-card" onClick={()=>onOpen(a)}>
-      <div style={{ display:"flex", alignItems:"flex-start", gap:8 }}>
-        <div style={{ flex:1, minWidth:0 }}>
-          <div className="acct-name" style={{ fontSize:14, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{a.tenant}</div>
-          <div style={{ fontSize:11, color:"var(--fg-4)", fontWeight:600 }}>{a.trade}</div>
-        </div>
-        <HsChip hs={a.hs} mini />
-      </div>
-      <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:10, flexWrap:"wrap" }}>
-        <StatusChip status={a.status} />
-        {ps && <span title={a.portalStatus} style={{ display:"inline-flex" }}><MI style={{ fontSize:15, color:ps.c }}>{ps.i}</MI></span>}
-        {a.escalation && a.escalation.open && <span title="Open escalation"><MI style={{ fontSize:15, color:"var(--red)" }}>warning</MI></span>}
-        <BalanceBadge amount={a.outstandingBalance} sm />
-      </div>
-      <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:12 }}>
-        <Avatar name={a.ic} size={20} />
-        <span style={{ fontSize:12, color:"var(--fg-2)", fontWeight:600, flex:1 }}>{firstName(a.ic)} {a.ic.split(" ")[1][0]}.</span>
-        <EngScore score={a.engagementScore} withBar />
-      </div>
-      <div className="acct-card-foot">
-        <div><div className="acl">CMRR</div><div className="acv">{fmtMoney(a.cmrr)}</div></div>
-        <div><div className="acl">Go-Live</div><div className="acv" style={{ color: a.status==="Live"&&a.liveDate?"var(--green)":pglOverdue(a)?"var(--red)":"var(--sky)" }}>{a.status==="Live"&&a.liveDate?fmtDate(a.liveDate):fmtDate(a.pgl)}</div></div>
-        <div><div className="acl">Transition</div><div className="acv" style={{ color: transOverdue?"var(--red)":"var(--sky)" }}>{fmtDate(a.antTransitionDate)}</div></div>
       </div>
     </div>
   );
@@ -410,10 +379,9 @@ function AccountsView({ accounts, onOpen, senior }) {
     <div className="view-enter">
       <div className="seg" style={{ marginBottom:18 }}>
         <button className={mode==="table"?"on":""} onClick={()=>setMode("table")}><MI style={{fontSize:17, verticalAlign:"-3px", marginRight:5}}>list_alt</MI>List</button>
-        <button className={mode==="cards"?"on":""} onClick={()=>setMode("cards")}><MI style={{fontSize:17, verticalAlign:"-3px", marginRight:5}}>grid_view</MI>Cards</button>
         <button className={mode==="pipeline"?"on":""} onClick={()=>setMode("pipeline")}><MI style={{fontSize:17, verticalAlign:"-3px", marginRight:5}}>timeline</MI>Pipeline</button>
       </div>
-      {mode==="pipeline" ? <Pipeline accounts={accounts} onOpen={onOpen} /> : <Portfolio accounts={accounts} onOpen={onOpen} mode={mode} senior={senior} />}
+      {mode==="pipeline" ? <Pipeline accounts={accounts} onOpen={onOpen} /> : <Portfolio accounts={accounts} onOpen={onOpen} senior={senior} />}
     </div>
   );
 }
@@ -1436,30 +1404,28 @@ function ComplianceView({ accounts, onOpen, focus, senior }) {
   };
 
   // Per-account issue definitions — each yields a labeled chip
-  const impLive = a => a.status==="Implementation" || a.status==="Live";
-  const reviewHrs = a => a.transitionStatusUpdatedAt ? P.weekdayHoursBetween(a.transitionStatusUpdatedAt, P.now) : null;
   const defs = [
     { key:"noHS", label:"Missing health score", short:"No health score", color:"var(--red)", icon:"error",
-      test:a => impLive(a) && a.hs==null, detail:a => "No health score entered" },
+      test:COMPLIANCE_TESTS.noHS, detail:a => "No health score entered" },
     { key:"noComments", label:"Missing HS comments", short:"No HS comments", color:"var(--yellow)", icon:"comment",
-      test:a => impLive(a) && a.hs!=null && !a.hsComment, detail:a => `Score ${a.hs}, no comments` },
+      test:COMPLIANCE_TESTS.noComments, detail:a => `Score ${a.hs}, no comments` },
     { key:"staleHS", label:"Stale health score (>7d)", short:"Stale HS", color:"var(--yellow)", icon:"update",
-      test:a => impLive(a) && a.hsLastUpdated && P.ageDays(a.hsLastUpdated)>window.HS_STALE_DAYS, detail:a => `Updated ${P.ageDays(a.hsLastUpdated)}d ago` },
+      test:COMPLIANCE_TESTS.staleHS, detail:a => `Updated ${P.ageDays(a.hsLastUpdated)}d ago` },
     { key:"pglOverdue", label:"Go-live date passed", short:"Go-live passed", color:"var(--red)", icon:"event_busy",
-      test:a => a.pgl && new Date(a.pgl)<now && a.status!=="Live" && a.status!=="Hold", detail:a => `PGL ${fmtDate(a.pgl)} · ${P.ageDays(a.pgl)}d ago` },
+      test:COMPLIANCE_TESTS.pglOverdue, detail:a => `PGL ${fmtDate(a.pgl)} · ${P.ageDays(a.pgl)}d ago` },
     { key:"transOverdue", label:"Success transition overdue", short:"Success transition overdue", color:"var(--red)", icon:"schedule",
-      test:a => a.antTransitionDate && new Date(a.antTransitionDate)<now && !a.transitioned && a.status!=="Hold", detail:a => `Ant. Success transition ${fmtDate(a.antTransitionDate)} · ${P.ageDays(a.antTransitionDate)}d ago` },
+      test:COMPLIANCE_TESTS.transOverdue, detail:a => `Ant. Success transition ${fmtDate(a.antTransitionDate)} · ${P.ageDays(a.antTransitionDate)}d ago` },
     { key:"antBeforePgl", label:"Success transition dated before go-live", short:"Success < go-live", color:"#E8915B", icon:"swap_vert",
-      test:a => a.antTransitionDate && a.pgl && new Date(a.antTransitionDate)<new Date(a.pgl), detail:a => `Transition ${fmtDate(a.antTransitionDate)} is before go-live ${fmtDate(a.pgl)}` },
+      test:COMPLIANCE_TESTS.antBeforePgl, detail:a => `Transition ${fmtDate(a.antTransitionDate)} is before go-live ${fmtDate(a.pgl)}` },
     { key:"transWeekNotLive", label:"Moving to Success this week but not live", short:"Success this week, not live", color:"var(--red)", icon:"emergency",
-      test:a => a.antTransitionDate && inThisWeek(a.antTransitionDate) && a.status!=="Live" && a.status!=="Hold" && a.status!=="Success", detail:a => `Success transition this week but status is ${a.status}` },
+      test:COMPLIANCE_TESTS.transWeekNotLive, detail:a => `Success transition this week but status is ${a.status}` },
     { key:"awaitingReview", label:"Waiting for CSM Manager review (24h SLA)", short:"Review > 24h", color:"var(--red)", icon:"rate_review",
-      test:a => a.successTransitionStatus==="Needs CSM Review" && reviewHrs(a)!=null && reviewHrs(a)>=24,
-      detail:a => `In Needs CSM Review for ${fmtAge(reviewHrs(a))} (business hours)` },
+      test:COMPLIANCE_TESTS.awaitingReview,
+      detail:a => `In Needs CSM Review for ${fmtAge(window.reviewHrs(a))} (business hours)` },
     { key:"hypercareLong", label:"In hypercare over 2 weeks", short:"Hypercare > 2 wks", color:"var(--yellow)", icon:"timer",
-      test:a => a.status==="Live" && !a.transitioned && a.liveDate && P.ageDays(a.liveDate)>14, detail:a => `Live ${P.ageDays(a.liveDate)}d ago, not yet moved to Success` },
+      test:COMPLIANCE_TESTS.hypercareLong, detail:a => `Live ${P.ageDays(a.liveDate)}d ago, not yet moved to Success` },
     { key:"noHandoffDate", label:"No anticipated Success transition date", short:"No Success date", color:"var(--yellow)", icon:"event_busy",
-      test:a => impLive(a) && !a.transitioned && !a.antTransitionDate, detail:a => `${a.status}, no anticipated Success transition date set` },
+      test:COMPLIANCE_TESTS.noHandoffDate, detail:a => `${a.status}, no anticipated Success transition date set` },
   ];
 
   // accounts with ≥1 issue, each annotated with its issue list
