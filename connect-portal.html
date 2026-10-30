@@ -165,7 +165,7 @@ const bmkCode2 = `javascript:void((async function(){
     });
     const result=await resp.json();
     document.title='✅ Synced '+Object.keys(details).length+' accounts!';
-    alert('Synced '+Object.keys(details).length+' accounts. Engagement items: '+eng.length+'. Go back and refresh.');
+    alert('Synced '+Object.keys(details).length+' accounts. Engagement: '+Object.keys(eng).length+', tasks: '+Object.keys(tasks).length+', activity: '+Object.keys(activity).length+'. Go back and refresh.');
   }catch(e){
     document.title='❌ Sync failed';
     alert('Sync failed: '+e.message+'\\n\\nMake sure the dashboard (localhost:5001) is running.');
