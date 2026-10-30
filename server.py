@@ -3169,6 +3169,35 @@ def api_portal_sync_receive():
     detail_count = len(data.get("details", {}))
     return jsonify({"ok": True, "detailCount": detail_count, "syncedAt": data.get("syncedAt")})
 
+@app.route("/api/debug/portal-cache")
+def api_debug_portal_cache():
+    """Read-only: describe the SHAPE of the cached OB Portal data (no full dump), to
+    diagnose why a section (e.g. engagement breakdown) is not populating."""
+    if not PORTAL_CACHE_FILE.exists():
+        return jsonify({"hasCache": False})
+    try:
+        c = json.loads(PORTAL_CACHE_FILE.read_text())
+    except Exception as e:
+        return jsonify({"hasCache": True, "error": str(e)})
+    def shape(v):
+        if isinstance(v, dict):
+            return {"type": "dict", "len": len(v), "keys": list(v.keys())[:8]}
+        if isinstance(v, list):
+            return {"type": "list", "len": len(v), "firstItemKeys": list(v[0].keys())[:12] if v and isinstance(v[0], dict) else None}
+        return {"type": type(v).__name__, "value": str(v)[:120]}
+    eng = c.get("engagement")
+    sample = None
+    if isinstance(eng, list) and eng:
+        sample = json.dumps(eng[0], default=str)[:600]
+    elif isinstance(eng, dict) and eng:
+        k = next(iter(eng)); sample = k + ": " + json.dumps(eng[k], default=str)[:600]
+    det = c.get("details") or {}
+    dk = next(iter(det), None)
+    return jsonify({"hasCache": True, "syncedAt": c.get("syncedAt"), "topKeys": list(c.keys()),
+                    "engagement": shape(eng), "engagementSample": sample,
+                    "detailsCount": len(det), "sampleDetailTopKeys": list((det.get(dk) or {}).keys())[:25] if dk else None,
+                    "idsRequested": len(c.get("ids") or []), "meCount": len(c.get("me") or [])})
+
 @app.route("/api/portal-sync/status")
 def api_portal_sync_status():
     """Check if we have cached portal data."""

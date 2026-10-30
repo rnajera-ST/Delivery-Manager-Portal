@@ -233,7 +233,8 @@ function AuditTab({ a }) {
   const staleDays = a.hsLastUpdated ? P.ageDays(a.hsLastUpdated) : null;
   const Link = ({ href, icon, label }) => <a href={href} target="_blank" rel="noreferrer" className="btn btn-sm" style={{ textDecoration:"none" }} onClick={e=>e.stopPropagation()}><MI>{icon}</MI>{label}</a>;
 
-  const hasPortal = !!eb;
+  const hasEng = !!eb;
+  const hasPortal = hasEng;
   // weakest breakdown dimension drives the "what's dragging it down" line
   const dims = !hasPortal ? [] : [["Go-Live readiness",eb.goLiveReadiness],["Transition readiness",eb.transitionReadiness],["Product setup",eb.productSetup],["Product usage",eb.productUsage],["Training",eb.training]];
   const weakest = dims.length ? dims.slice().sort((x,y)=>x[1]-y[1])[0] : null;
@@ -252,14 +253,14 @@ function AuditTab({ a }) {
           .map(([k,icon,label]) => <Link key={k} href={a.externalLinks[k]} icon={icon} label={label} />)}
       </div>
 
-      {!hasPortal && (
+      {!hasEng && (
         <div className="card card-pad" style={{ marginBottom:16, background:"var(--tint-blue-08)", borderColor:"var(--tint-blue-30)" }}>
-          <span className="eyebrow" style={{ color:"var(--sky)" }}><MI style={{fontSize:15, verticalAlign:"-2px", marginRight:4}}>link_off</MI>OB Portal data not connected</span>
-          <p style={{ fontSize:13, lineHeight:1.55, color:"var(--fg-2)", marginTop:8 }}>Engagement score, specialist teams, product usage, training and the primary contact come from the OB Portal and are not available for this account right now. The links above and the account details below still work.</p>
+          <span className="eyebrow" style={{ color:"var(--sky)" }}><MI style={{fontSize:15, verticalAlign:"-2px", marginRight:4}}>query_stats</MI>No engagement data for this account</span>
+          <p style={{ fontSize:13, lineHeight:1.55, color:"var(--fg-2)", marginTop:8 }}>The OB Portal did not return an engagement score or breakdown for this account, so those sections are hidden. Links, account details and contact info come from other OB Portal and Salesforce data and still show.</p>
         </div>
       )}
 
-      {hasPortal && <>
+      {hasEng && <>
       {/* hero score */}
       <div className="card card-pad" style={{ marginBottom:16, display:"flex", alignItems:"center", gap:20 }}>
         <div style={{ textAlign:"center", flexShrink:0, minWidth:96 }}>
@@ -283,6 +284,9 @@ function AuditTab({ a }) {
         ))}
       </div>
 
+      </>}
+
+      {a.specialists && Object.keys(a.specialists).length && <>
       {/* specialist teams */}
       <span className="eyebrow">Specialist Teams</span>
       <div className="dgrid" style={{ gridTemplateColumns:"repeat(3,1fr)", margin:"10px 0 16px" }}>
@@ -292,6 +296,9 @@ function AuditTab({ a }) {
             <div style={{ fontSize:11, color:"var(--fg-3)", marginTop:3 }}>{s.name}</div></div>); })}
       </div>
 
+      </>}
+
+      {a.usage && <>
       {/* product usage as stat tiles */}
       <span className="eyebrow">Product Usage</span>
       <div className="dgrid" style={{ gridTemplateColumns:"repeat(4,1fr)", margin:"10px 0 16px" }}>
@@ -301,6 +308,9 @@ function AuditTab({ a }) {
         <UsageTile icon="event_available" label="Jobs" v={(a.usage||{}).jobsBooked ?? "\u2014"} sub="booked" />
       </div>
 
+      </>}
+
+      {a.training && <>
       {/* training */}
       <div className="card card-pad" style={{ marginBottom:16 }}>
         <span className="eyebrow">Training Progress</span>
