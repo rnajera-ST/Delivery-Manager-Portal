@@ -326,8 +326,6 @@ function AuditTab({ a }) {
         <Dcell l="Health updated" v={staleDays!=null?(staleDays===0?"Today":staleDays+"d ago"):"Never"} alert={(staleDays==null||staleDays>window.HS_STALE_DAYS) && (a.status==="Implementation"||a.status==="Live")} />
         <Dcell l="Prev. software" v={a.previousSoftware} />
         <Dcell l="Package" v={a.packageName} />
-        <Dcell l="Account level" v={a.accountLevel} />
-        <Dcell l="Cohort" v={a.cohort} />
         <Dcell l="CSM" v={a.csm||"Not assigned"} />
         <Dcell l="Business focus" v={a.businessFocus} />
       </div>
