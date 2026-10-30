@@ -975,7 +975,8 @@ def api_data():
             success_rep = success_reps.get(aid, "")
 
             # Derived
-            transitioned = transition_date is not None
+            # A call date in the future is a scheduled call, not a completed transition.
+            transitioned = transition_date is not None and str(transition_date)[:10] <= date.today().isoformat()
             cohort = row.get("COHORT_OB") or ""
             complexity = row.get("COMPLEXITY_TIER_OB") or ""
 
@@ -2863,7 +2864,8 @@ def _account_compliance_issues(row, today):
     pgl = as_date(row.get("PROJECTED_GO_LIVE_DATE_OB"))
     ant = as_date(row.get("ANTICIPATED_SUCCESS_TRANSITION_DATE_OB"))
     hs_updated = as_date(row.get("LAST_UPDATED_HEALTH_SCORE_OB"))
-    transitioned = row.get("SUCCESS_TRANSITION_CALL_DATE_OB") is not None
+    _tcd = row.get("SUCCESS_TRANSITION_CALL_DATE_OB")
+    transitioned = _tcd is not None and (_tcd.date() if isinstance(_tcd, datetime) else _tcd) <= today
 
     monday = today - timedelta(days=today.weekday())
     friday = monday + timedelta(days=4)

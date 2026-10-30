@@ -18,7 +18,6 @@ function AccountDetail({ account, onClose, onSave, onOpenEsc }) {
   const tabs = [
     ["overview", "Overview"],
     ["audit", "Audit"],
-    ["escalation", "Escalation" + (a.escalation ? "" : "")],
     ["tickets", `Tickets (${a.tickets.length + (a.churnTickets||[]).length})`],
     ["calendar", "Activity"],
     ["notes", "Notes & Actions"],
@@ -45,9 +44,7 @@ function AccountDetail({ account, onClose, onSave, onOpenEsc }) {
           <div style={{ display:"flex", gap:8, marginTop:11, flexWrap:"wrap", alignItems:"center" }}>
             <StatusChip status={a.status} />
             <HsChip hs={a.hs} />
-            <PortalStatusChip s={a.portalStatus} />
             {a.sentiment && <span className="pill-tag"><SentDot s={a.sentiment} /> {a.sentiment}</span>}
-            {a.escalation && a.escalation.open && <span className="chip" style={{ background:"rgba(226,79,79,.14)", borderColor:"rgba(226,79,79,.45)", color:"var(--red)" }}><MI>warning</MI>Escalated · {P.ageDays(a.escalation.opened)}d</span>}
           </div>
         </div>
 
@@ -58,7 +55,6 @@ function AccountDetail({ account, onClose, onSave, onOpenEsc }) {
 
           {tab === "overview" && <OverviewTab a={a} wk={wk} cycle={cycle} m={m} />}
           {tab === "audit" && <AuditTab a={a} />}
-          {tab === "escalation" && <EscalationTab a={a} commit={commit} edit={edit} rerender={rerender} />}
           {tab === "tickets" && <TicketsTab a={a} commit={commit} rerender={rerender} />}
           {tab === "calendar" && <window.CalendarTab account={a} />}
           {tab === "notes" && <NotesTab a={a} edit={edit} commit={commit} rerender={rerender} fuDays={fuDays} />}
@@ -94,10 +90,90 @@ function ResourcesCard({ a }) {
   );
 }
 
+// "Needs CSM Review" shows how long it has waited, in days (weekdays only), flagged at the 24h SLA.
+function reviewWaitDays(a) {
+  const h = window.reviewHrs ? window.reviewHrs(a) : null;
+  return h == null ? null : Math.floor(h / 24);
+}
+function successStatusText(a) {
+  const st = a.successTransitionStatus || "Not Set";
+  if (st === "Needs CSM Review") { const d = reviewWaitDays(a); return d == null ? st : st + " \u00b7 waiting " + d + (d === 1 ? " day" : " days"); }
+  return st;
+}
+function successStatusAlert(a) {
+  if (a.successTransitionStatus === "Needs CSM Review") { const h = window.reviewHrs(a); return h != null && h >= 24; }
+  return !!(a.antTransitionDate && new Date(a.antTransitionDate) <= new Date() && !a.transitioned
+    && a.successTransitionStatus !== "Pending Handoff Call" && a.successTransitionStatus !== "Completed");
+}
+
+// MAX timeline: 6 weeks to go-live, then 2 weeks of hypercare, then Success.
+function MaxTimeline({ a }) {
+  const wk = a.implStart ? Math.max(0, Math.floor(P.ageDays(a.implStart) / 7)) : null;
+  const live = a.status === "Live" && a.liveDate;
+  const dl = live ? P.ageDays(a.liveDate) : null;
+  const done = !!a.transitioned || a.status === "Success";
+  let headline, pct, over = false;
+  if (done) { headline = "Moved to Success"; pct = 100; }
+  else if (live) { headline = "Hypercare \u00b7 day " + dl + " of 14"; pct = Math.min(100, dl / 14 * 100); over = dl > 14; }
+  else if (a.status === "Pre-Implementation") { headline = "Pre-implementation"; pct = 0; }
+  else { headline = wk == null ? "Implementation" : "Week " + (wk + 1) + " of 6 to go-live"; pct = wk == null ? 0 : Math.min(100, (wk + 1) / 6 * 100); over = wk != null && wk >= 6; }
+  const col = over ? "var(--red)" : "var(--sky)";
+  const seg = (label, w, fill, flag) => (
+    <div style={{ flex: w }}>
+      <div style={{ height:8, borderRadius:4, background:"var(--track-empty)", overflow:"hidden" }}>
+        <div style={{ height:"100%", width: fill + "%", background: flag ? "var(--red)" : "var(--sky)" }} />
+      </div>
+      <div style={{ fontSize:11, fontWeight:700, color:"var(--fg-3)", marginTop:6 }}>{label}</div>
+    </div>
+  );
+  const implFill = done || live ? 100 : (a.status === "Implementation" && wk != null ? Math.min(100, (wk + 1) / 6 * 100) : 0);
+  const hyperFill = done ? 100 : live ? Math.min(100, dl / 14 * 100) : 0;
+  return (
+    <div className="card card-pad" style={{ marginBottom:16 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:10 }}>
+        <span className="eyebrow">MAX Timeline</span>
+        <span style={{ fontSize:12, fontWeight:800, color: over ? "var(--red)" : "var(--fg-2)" }}>{headline}{over ? " \u00b7 overdue" : ""}</span>
+      </div>
+      <div style={{ display:"flex", gap:6 }}>
+        {seg("Implementation (6 wks)", 6, implFill, a.status === "Implementation" && over)}
+        {seg("Hypercare (2 wks)", 2, hyperFill, live && over)}
+        {seg("Success", 1, done ? 100 : 0, false)}
+      </div>
+    </div>
+  );
+}
+
+// This account's open Compliance issues (same rules as the Compliance page).
+function AccountFlags({ a }) {
+  const keys = (window.impLive && window.impLive(a)) ? Object.keys(COMPLIANCE_TESTS).filter(k => { try { return COMPLIANCE_TESTS[k](a); } catch (e) { return false; } }) : [];
+  if (!keys.length) return null;
+  return (
+    <div className="card card-pad" style={{ marginBottom:16, borderColor:"var(--tint-red-25)", background:"var(--tint-red-10)" }}>
+      <span className="eyebrow" style={{ color:"var(--red)" }}>Compliance Issues ({keys.length})</span>
+      <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:9 }}>
+        {keys.map(k => { const l = COMPLIANCE_LABELS[k]; return <span key={k} className="flag-pill" style={{ color:l.color }}><MI style={{ fontSize:13 }}>{l.icon}</MI>{l.short}</span>; })}
+      </div>
+    </div>
+  );
+}
+
+// Health score comments live in one Salesforce text field, so collapse by length
+// rather than trying to parse individual dated entries.
+function CollapsibleText({ text, limit = 420 }) {
+  const [open, setOpen] = useStateD(false);
+  const long = text.length > limit;
+  const shown = (open || !long) ? text : text.slice(0, limit).replace(/\s+\S*$/, "") + "\u2026";
+  return <>
+    <p style={{ fontSize:13.5, lineHeight:1.6, color:"var(--fg-1)", marginTop:8, whiteSpace:"pre-wrap" }}>{shown}</p>
+    {long && <button className="btn btn-sm btn-ghost" style={{ marginTop:6 }} onClick={() => setOpen(o => !o)}>{open ? "Show less" : "Show full comments (" + text.length.toLocaleString() + " characters)"}</button>}
+  </>;
+}
+
 function OverviewTab({ a, wk, cycle, m }) {
   const hsAge = a.hsLastUpdated ? P.ageDays(a.hsLastUpdated) : null;
   return (
     <div className="view-enter">
+      <AccountFlags a={a} />
       <div className="dgrid" style={{ marginBottom:16 }}>
         <Dcell l="OB Health" v={a.hs!=null ? `${a.hs} · ${m.l}` : "Missing"} alert={a.hs!=null && a.hs<=3} />
         <Dcell l="Health Updated" v={hsAge!=null ? (hsAge===0 ? "Today" : hsAge + "d ago") : "Never"} alert={(hsAge==null || hsAge>window.HS_STALE_DAYS) && (a.status==="Implementation" || a.status==="Live")} />
@@ -106,22 +182,13 @@ function OverviewTab({ a, wk, cycle, m }) {
         <Dcell l="Managed Techs" v={a.techs} />
         <Dcell l="Impl Start" v={fmtDateY(a.implStart)} />
         <Dcell l="Projected Go-Live" v={fmtDateY(a.pgl)} alert={pglOverdue(a)} />
-        <Dcell l="Ant. Transition" v={fmtDateY(a.antTransitionDate)} alert={a.pgl && a.antTransitionDate && new Date(a.pgl) > new Date(a.antTransitionDate)} />
-        <Dcell l="Transition Status" v={a.successTransitionStatus || "Not Set"} alert={a.antTransitionDate && new Date(a.antTransitionDate) <= new Date() && a.successTransitionStatus !== "Pending Handoff Call" && a.successTransitionStatus !== "Completed"} />
+        <Dcell l="Anticipated Success Transition" v={a.antTransitionDate ? fmtDateY(a.antTransitionDate) : ((a.status==="Implementation"||a.status==="Live") && !a.transitioned ? "Not set" : "\u2014")}
+          alert={(!a.antTransitionDate && (a.status==="Implementation"||a.status==="Live") && !a.transitioned) || (a.pgl && a.antTransitionDate && new Date(a.pgl) > new Date(a.antTransitionDate))} />
+        <Dcell l="Success Transition Status" v={successStatusText(a)} alert={successStatusAlert(a)} />
         <Dcell l={a.transitionDate ? "Transitioned" : "Cycle (days)"} v={a.transitionDate ? fmtDateY(a.transitionDate) : (cycle!=null ? cycle + "d" : "\u2014")} />
       </div>
 
-      {/* onboarding progress */}
-      <div className="card card-pad" style={{ marginBottom:16 }}>
-        <div style={{ display:"flex", justifyContent:"space-between", marginBottom:10 }}>
-          <span className="eyebrow">Onboarding Stage</span>
-          <span style={{ fontSize:12, fontWeight:700, color:"var(--fg-3)" }}>{a.cohort}</span>
-        </div>
-        <Steps status={a.status} />
-        <div style={{ display:"flex", justifyContent:"space-between", marginTop:8, fontSize:11, color:"var(--fg-3)", fontWeight:700 }}>
-          <span>Kickoff</span><span>Build</span><span>Train</span><span>Go-Live</span><span>Transition</span>
-        </div>
-      </div>
+      <MaxTimeline a={a} />
 
       <ResourcesCard a={a} />
 
@@ -129,7 +196,7 @@ function OverviewTab({ a, wk, cycle, m }) {
         const risk = a.hs != null && a.hs <= 3;
         return <div className="card card-pad" style={{ borderColor: risk ? m.bd : "var(--line)", background: risk ? m.bg : "var(--card)", marginBottom:16 }}>
           <span className="eyebrow" style={{ color: risk ? m.c : "var(--fg-3)" }}>Health Score Comments</span>
-          <p style={{ fontSize:13.5, lineHeight:1.6, color:"var(--fg-1)", marginTop:8 }}>{a.hsComment}</p>
+          <CollapsibleText text={a.hsComment} />
         </div>;
       })()}
 
@@ -196,8 +263,7 @@ function AuditTab({ a }) {
           <div style={{ fontSize:10, fontWeight:700, color:"var(--fg-3)", textTransform:"uppercase", letterSpacing:".6px", marginTop:4 }}>Engagement</div>
         </div>
         <div style={{ flex:1, minWidth:0 }}>
-          <PortalStatusChip s={a.portalStatus} />
-          <div style={{ fontSize:13, color:"var(--fg-2)", marginTop:10, lineHeight:1.5 }}>
+          <div style={{ fontSize:13, color:"var(--fg-2)", marginTop:0, lineHeight:1.5 }}>
             <MI style={{ fontSize:15, verticalAlign:"-3px", color:P.engColor(weakest[1]) }}>trending_down</MI> Lowest area: <strong>{weakest[0]}</strong> at <strong style={{ color:P.engColor(weakest[1]) }}>{weakest[1]}%</strong>
           </div>
         </div>

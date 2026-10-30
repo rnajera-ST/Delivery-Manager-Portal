@@ -227,6 +227,18 @@ const COMPLIANCE_TESTS = {
   hypercareLong: a => a.status==="Live" && !a.transitioned && a.liveDate && P.ageDays(a.liveDate)>14,
   noHandoffDate: a => impLive(a) && !a.transitioned && !a.antTransitionDate,
 };
+const COMPLIANCE_LABELS = {
+  noHS: { short:"No health score", color:"var(--red)", icon:"error" },
+  noComments: { short:"No HS comments", color:"var(--yellow)", icon:"comment" },
+  staleHS: { short:"Stale health score", color:"var(--yellow)", icon:"update" },
+  pglOverdue: { short:"Go-live date passed", color:"var(--red)", icon:"event_busy" },
+  transOverdue: { short:"Success transition overdue", color:"var(--red)", icon:"schedule" },
+  antBeforePgl: { short:"Success date before go-live", color:"#E8915B", icon:"swap_vert" },
+  transWeekNotLive: { short:"Success this week, not live", color:"var(--red)", icon:"emergency" },
+  awaitingReview: { short:"Review over 24h", color:"var(--red)", icon:"rate_review" },
+  hypercareLong: { short:"Hypercare over 2 weeks", color:"var(--yellow)", icon:"timer" },
+  noHandoffDate: { short:"No Success transition date", color:"var(--yellow)", icon:"event_busy" },
+};
 const isFlagged = (a) => impLive(a) && Object.values(COMPLIANCE_TESTS).some(t => t(a));
 const pglOverdue = (a) => a.pgl && new Date(a.pgl) < P.now && a.status !== "Live" && a.status !== "Hold";
 
@@ -251,5 +263,5 @@ Object.assign(window, {
   fmtMoney, fmtK, fmtDate, fmtDateY, weeksIn, relDay, firstName, icOf,
   MI, Avatar, HsChip, StatusChip, SentDot, AgePill, Stars, KPI, Card, Bar, Empty,
   PortalStatusChip, EngScore, SpecDots, MultiSelect, BalanceBadge,
-  isEsc, isFlagged, pglOverdue, COMPLIANCE_TESTS, reviewHrs, impLive, showToast,
+  isEsc, isFlagged, pglOverdue, COMPLIANCE_TESTS, COMPLIANCE_LABELS, reviewHrs, impLive, showToast,
 });
