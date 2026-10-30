@@ -200,9 +200,8 @@ function OverviewTab({ a, wk, cycle, m }) {
         </div>;
       })()}
 
-      <div className="grid-2">
+      <div>
         <MiniStat icon="receipt_long" label="Open Tickets" value={a.openTickets} sub={a.escTickets ? a.escTickets + " escalated" : "none escalated"} alert={a.escTickets>0} />
-        <MiniStat icon="sentiment_satisfied" label="Avg CSAT" value={a.csatAvg ? a.csatAvg.toFixed(1) : "\u2014"} sub={a.csat.length + " response" + (a.csat.length!==1?"s":"")} alert={a.csatAvg!=null && a.csatAvg<3} />
       </div>
     </div>
   );
@@ -233,12 +232,12 @@ function AuditTab({ a }) {
   const [briefOpen, setBriefOpen] = useStateD(false);
   const staleDays = a.hsLastUpdated ? P.ageDays(a.hsLastUpdated) : null;
   const Link = ({ href, icon, label }) => <a href={href} target="_blank" rel="noreferrer" className="btn btn-sm" style={{ textDecoration:"none" }} onClick={e=>e.stopPropagation()}><MI>{icon}</MI>{label}</a>;
-  if (!eb) return <div className="view-enter"><Empty icon="query_stats" title="No engagement data" sub="Portal engagement metrics haven't synced for this account yet." /></div>;
 
+  const hasPortal = !!eb;
   // weakest breakdown dimension drives the "what's dragging it down" line
-  const dims = [["Go-Live readiness",eb.goLiveReadiness],["Transition readiness",eb.transitionReadiness],["Product setup",eb.productSetup],["Product usage",eb.productUsage],["Training",eb.training]];
-  const weakest = dims.slice().sort((x,y)=>x[1]-y[1])[0];
-  const buckets = [
+  const dims = !hasPortal ? [] : [["Go-Live readiness",eb.goLiveReadiness],["Transition readiness",eb.transitionReadiness],["Product setup",eb.productSetup],["Product usage",eb.productUsage],["Training",eb.training]];
+  const weakest = dims.length ? dims.slice().sort((x,y)=>x[1]-y[1])[0] : null;
+  const buckets = !hasPortal ? [] : [
     { label:"Launch Readiness", rows:[["Go-Live readiness",eb.goLiveReadiness],["Transition readiness",eb.transitionReadiness]] },
     { label:"Product Adoption", rows:[["Product setup",eb.productSetup],["Product usage",eb.productUsage]] },
     { label:"Commitment", rows:[["Training",eb.training]] },
@@ -246,16 +245,21 @@ function AuditTab({ a }) {
 
   return (
     <div className="view-enter">
-      {/* quick links — at the top of the tab for fast access */}
+      {/* quick links: built from Salesforce IDs, so they work even without OB Portal data */}
       <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:16 }}>
-        <Link href={a.externalLinks.sfdc} icon="cloud" label="SFDC Account" />
-        <Link href={a.externalLinks.sfdcOb} icon="assignment" label="SFDC OB Record" />
-        <Link href={a.externalLinks.gong} icon="graphic_eq" label="Gong" />
-        <Link href={a.externalLinks.dcc} icon="build" label="DCC Tools" />
-        <Link href={a.externalLinks.tenant} icon="dns" label="Tenant Mgmt" />
-        <Link href={a.externalLinks.portal} icon="open_in_new" label="OB Portal" />
+        {[["sfdc","cloud","SFDC Account"],["sfdcOb","assignment","SFDC OB Record"],["gong","graphic_eq","Gong"],["dcc","build","DCC Tools"],["tenant","dns","Tenant Mgmt"],["portal","open_in_new","OB Portal"]]
+          .filter(([k]) => a.externalLinks && a.externalLinks[k])
+          .map(([k,icon,label]) => <Link key={k} href={a.externalLinks[k]} icon={icon} label={label} />)}
       </div>
 
+      {!hasPortal && (
+        <div className="card card-pad" style={{ marginBottom:16, background:"var(--tint-blue-08)", borderColor:"var(--tint-blue-30)" }}>
+          <span className="eyebrow" style={{ color:"var(--sky)" }}><MI style={{fontSize:15, verticalAlign:"-2px", marginRight:4}}>link_off</MI>OB Portal data not connected</span>
+          <p style={{ fontSize:13, lineHeight:1.55, color:"var(--fg-2)", marginTop:8 }}>Engagement score, specialist teams, product usage, training and the primary contact come from the OB Portal and are not available for this account right now. The links above and the account details below still work.</p>
+        </div>
+      )}
+
+      {hasPortal && <>
       {/* hero score */}
       <div className="card card-pad" style={{ marginBottom:16, display:"flex", alignItems:"center", gap:20 }}>
         <div style={{ textAlign:"center", flexShrink:0, minWidth:96 }}>
@@ -282,7 +286,7 @@ function AuditTab({ a }) {
       {/* specialist teams */}
       <span className="eyebrow">Specialist Teams</span>
       <div className="dgrid" style={{ gridTemplateColumns:"repeat(3,1fr)", margin:"10px 0 16px" }}>
-        {["DQA","Telecom","Fintech"].map(k => { const s=sp[k]; const m=P.SPEC_STATUS[s.status]||{c:"var(--fg-3)"}; return (
+        {["DQA","Telecom","Fintech"].map(k => { const s=(sp&&sp[k])||{status:"Not assigned",name:""}; const m=P.SPEC_STATUS[s.status]||{c:"var(--fg-3)"}; return (
           <div className="dcell" key={k}><div className="dl">{k}</div>
             <div className="dv" style={{ fontSize:12.5, color:m.c, display:"flex", alignItems:"center", gap:5 }}><span className="flag-dot" style={{ background:m.c }} />{s.status}</div>
             <div style={{ fontSize:11, color:"var(--fg-3)", marginTop:3 }}>{s.name}</div></div>); })}
@@ -291,19 +295,21 @@ function AuditTab({ a }) {
       {/* product usage as stat tiles */}
       <span className="eyebrow">Product Usage</span>
       <div className="dgrid" style={{ gridTemplateColumns:"repeat(4,1fr)", margin:"10px 0 16px" }}>
-        <UsageTile icon="group" label="Users" v={a.usage.usersLoggedIn} sub="logged in" />
-        <UsageTile icon="engineering" label="Techs" v={a.usage.techsLoggedIn} sub="logged in" />
-        <UsageTile icon="speed" label="TAD" v={a.usage.tadScore} sub="score" />
-        <UsageTile icon="event_available" label="Jobs" v={a.usage.jobsBooked} sub="booked" />
+        <UsageTile icon="group" label="Users" v={(a.usage||{}).usersLoggedIn ?? "\u2014"} sub="logged in" />
+        <UsageTile icon="engineering" label="Techs" v={(a.usage||{}).techsLoggedIn ?? "\u2014"} sub="logged in" />
+        <UsageTile icon="speed" label="TAD" v={(a.usage||{}).tadScore ?? "\u2014"} sub="score" />
+        <UsageTile icon="event_available" label="Jobs" v={(a.usage||{}).jobsBooked ?? "\u2014"} sub="booked" />
       </div>
 
       {/* training */}
       <div className="card card-pad" style={{ marginBottom:16 }}>
         <span className="eyebrow">Training Progress</span>
         <div style={{ marginTop:10 }}>
-          <ScoreBar label="POC" v={tr.poc} sm /><ScoreBar label="Admins" v={tr.admins} sm /><ScoreBar label="Non-admins" v={tr.nonAdmins} sm /><ScoreBar label="Technicians" v={tr.technicians} sm />
+          <ScoreBar label="POC" v={(tr||{}).poc} sm /><ScoreBar label="Admins" v={(tr||{}).admins} sm /><ScoreBar label="Non-admins" v={(tr||{}).nonAdmins} sm /><ScoreBar label="Technicians" v={(tr||{}).technicians} sm />
         </div>
       </div>
+
+      </>}
 
       <div className="dgrid" style={{ marginBottom:16 }}>
         <Dcell l="PGL Confidence" v={a.pglConfidence} />
@@ -316,18 +322,18 @@ function AuditTab({ a }) {
         <Dcell l="Business focus" v={a.businessFocus} />
       </div>
 
-      <div className="card card-pad" style={{ marginBottom:16 }}>
+      {a.poc && a.poc.name && <div className="card card-pad" style={{ marginBottom:16 }}>
         <span className="eyebrow">Primary Contact</span>
         <div style={{ marginTop:8, fontSize:13.5, fontWeight:700 }}>{a.poc.name}</div>
         <div style={{ fontSize:12.5, color:"var(--fg-3)", marginTop:2 }}>{a.poc.email} · {a.poc.phone}</div>
-      </div>
+      </div>}
 
       {/* collapsible flash brief */}
-      <div className="card card-pad" style={{ marginBottom:16, background:"var(--tint-blue-08)", borderColor:"var(--tint-blue-30)" }}>
+      {a.flashBrief && <div className="card card-pad" style={{ marginBottom:16, background:"var(--tint-blue-08)", borderColor:"var(--tint-blue-30)" }}>
         <span className="eyebrow" style={{ color:"var(--sky)" }}><MI style={{fontSize:15, verticalAlign:"-2px", marginRight:4}}>auto_awesome</MI>Flash Brief</span>
         <p style={{ fontSize:13.5, lineHeight:1.6, color:"var(--fg-1)", marginTop:8, display:"-webkit-box", WebkitLineClamp: briefOpen?"unset":2, WebkitBoxOrient:"vertical", overflow:"hidden" }}>{a.flashBrief}</p>
         <button className="btn btn-sm btn-ghost" style={{ marginTop:8, padding:"3px 8px" }} onClick={()=>setBriefOpen(o=>!o)}>{briefOpen?"Show less":"Show more"}<MI style={{fontSize:16}}>{briefOpen?"expand_less":"expand_more"}</MI></button>
-      </div>
+      </div>}
 
     </div>
   );
