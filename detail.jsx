@@ -70,7 +70,6 @@ function AccountDetail({ account, onClose, onSave, onOpenEsc }) {
 const EHUB_REQUEST_FORM_URL = "https://airtable.com/app7iMshgNNncfHtJ/shrhhimwvOIMHdYpf";
 const MAX_RESOURCE_LINKS = [
   { label: "Delivery Manager Playbook", icon: "menu_book", href: "https://docs.google.com/document/d/172R3kc50yFJz9PptnYpvuvXsvz3epceYLnrlYoFvH5g/edit" },
-  { label: "Max Package Features", icon: "inventory_2", href: "https://docs.google.com/spreadsheets/d/1HGGqD4u0XaAEr3aV9mi3X45FgyC2upXjr9KkenTahtc/edit" },
 ];
 
 function ResourcesCard({ a }) {
