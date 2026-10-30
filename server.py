@@ -3192,6 +3192,19 @@ def api_portal_sync_receive():
     detail_count = len(data.get("details", {}))
     return jsonify({"ok": True, "detailCount": detail_count, "syncedAt": data.get("syncedAt")})
 
+@app.route("/api/portal-sync/account/<sf_id>")
+def api_portal_sync_account(sf_id):
+    """Tasks + activity for one account, from the bookmarklet-synced cache."""
+    if not PORTAL_CACHE_FILE.exists():
+        return jsonify({"synced": False})
+    try:
+        c = json.loads(PORTAL_CACHE_FILE.read_text())
+    except Exception:
+        return jsonify({"synced": False})
+    return jsonify({"synced": True, "syncedAt": c.get("syncedAt"),
+                    "tasks": (c.get("tasks") or {}).get(sf_id),
+                    "activity": (c.get("activity") or {}).get(sf_id)})
+
 @app.route("/api/debug/portal-cache")
 def api_debug_portal_cache():
     """Read-only: describe the SHAPE of the cached OB Portal data (no full dump), to
