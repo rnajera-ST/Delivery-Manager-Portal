@@ -263,6 +263,12 @@ def get_team():
     if _is_config_owner():
         cfg_team = load_config().get("team", [])
         if cfg_team:
+            det = _detect_identity()
+            if det.get("usedFallback"):
+                # Names are masked, so the curated list may be stale. Add any
+                # fallback ICs it is missing rather than silently hiding them.
+                have = {(t.get("name") or "").strip().lower() for t in cfg_team}
+                return cfg_team + [t for t in det["team"] if (t.get("name") or "").strip().lower() not in have]
             return cfg_team
     return _detect_identity()["team"]
 
@@ -1701,6 +1707,7 @@ def api_debug_identity():
     _det = _detect_identity()
     out["fallbackTeamActive"] = bool(_det.get("usedFallback"))
     out["teamInUse"] = [t["name"] for t in _det.get("team", [])]
+    out["teamUsedByPortal"] = [t["name"] for t in get_team()]
     out["emailInUse"] = repr(email)  # repr() makes stray spaces or newlines visible
     try:
         out["snowflakeRole"] = run_query("SELECT CURRENT_ROLE() AS R")[0].get("R")
